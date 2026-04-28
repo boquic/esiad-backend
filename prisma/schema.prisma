@@ -1,0 +1,211 @@
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  CLIENT
+  OPERATOR
+  ADMIN
+}
+
+enum Specialty {
+  LASER
+  PLOTTING
+  PRINTING_3D
+  MODEL
+}
+
+enum PricingModel {
+  FIXED
+  PER_M2
+  PER_UNIT
+  PER_VOLUME
+}
+
+enum OrderStatus {
+  BUDGETED
+  PENDING_PAYMENT
+  IN_PROGRESS
+  READY
+  DELIVERED
+  CANCELLED
+  EXPIRED
+}
+
+enum PaymentCondition {
+  ADVANCE_50
+  CASH_ON_DELIVERY
+}
+
+enum PaymentType {
+  ADVANCE
+  FINAL
+}
+
+enum PaymentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum FileType {
+  PLAN_DWG
+  PLAN_DXF
+  PLAN_PDF
+}
+
+enum TriggerEvent {
+  BUDGET_READY
+  PAYMENT_CONFIRMED
+  ORDER_READY
+  PICKUP_REMINDER_48H
+}
+
+enum DeliveryStatus {
+  SENT
+  DELIVERED
+  FAILED
+}
+
+model User {
+  id                     String    @id @default(uuid())
+  dni                    String    @unique
+  first_name             String
+  last_name              String
+  phone                  String    @unique
+  password_hash          String
+  role                   Role      @default(CLIENT)
+  completed_orders_count Int       @default(0)
+  is_frequent            Boolean   @default(false)
+  created_at             DateTime  @default(now())
+
+  operator               Operator?
+  orders                 Order[]   @relation("ClientOrders")
+  notifications          Notification[]
+
+  @@map("users")
+}
+
+model Operator {
+  id           String               @id @default(uuid())
+  user_id      String               @unique
+  created_at   DateTime             @default(now())
+
+  user         User                 @relation(fields: [user_id], references: [id])
+  specialties  OperatorSpecialty[]
+  orders       Order[]
+
+  @@map("operators")
+}
+
+model OperatorSpecialty {
+  id          String    @id @default(uuid())
+  operator_id String
+  specialty   Specialty
+
+  operator    Operator  @relation(fields: [operator_id], references: [id])
+
+  @@unique([operator_id, specialty])
+  @@map("operator_specialties")
+}
+
+model ServiceType {
+  id            String       @id @default(uuid())
+  name          String       @unique
+  pricing_model PricingModel
+  is_active     Boolean      @default(true)
+  created_at    DateTime     @default(now())
+
+  materials     Material[]
+  orders        Order[]
+
+  @@map("service_types")
+}
+
+model Material {
+  id              String      @id @default(uuid())
+  service_type_id String
+  name            String
+  unit_price      Decimal     @db.Decimal(10, 2)
+  unit            String
+  is_active       Boolean     @default(true)
+
+  service_type    ServiceType @relation(fields: [service_type_id], references: [id])
+  orders          Order[]
+
+  @@unique([service_type_id, name])
+  @@map("materials")
+}
+
+model Order {
+  id                String           @id @default(uuid())
+  client_id         String
+  operator_id       String?
+  service_type_id   String
+  material_id       String
+  status            OrderStatus      @default(BUDGETED)
+  payment_condition PaymentCondition
+  estimated_price   Decimal          @db.Decimal(10, 2)
+  advance_amount    Decimal?         @db.Decimal(10, 2)
+  budget_expires_at DateTime
+  notes             String?
+  created_at        DateTime         @default(now())
+  updated_at        DateTime         @updatedAt
+
+  client            User             @relation("ClientOrders", fields: [client_id], references: [id])
+  operator          Operator?        @relation(fields: [operator_id], references: [id])
+  service_type      ServiceType      @relation(fields: [service_type_id], references: [id])
+  material          Material         @relation(fields: [material_id], references: [id])
+  files             OrderFile[]
+  payments          Payment[]
+  notifications     Notification[]
+
+  @@map("orders")
+}
+
+model OrderFile {
+  id          String   @id @default(uuid())
+  order_id    String
+  file_url    String
+  file_type   FileType
+  uploaded_at DateTime @default(now())
+
+  order       Order    @relation(fields: [order_id], references: [id])
+
+  @@map("order_files")
+}
+
+model Payment {
+  id            String        @id @default(uuid())
+  order_id      String
+  amount        Decimal       @db.Decimal(10, 2)
+  payment_type  PaymentType
+  capture_url   String?
+  status        PaymentStatus @default(PENDING)
+  admin_comment String?
+  created_at    DateTime      @default(now())
+  reviewed_at   DateTime?
+
+  order         Order         @relation(fields: [order_id], references: [id])
+
+  @@map("payments")
+}
+
+model Notification {
+  id                   String          @id @default(uuid())
+  order_id             String
+  user_id              String
+  trigger_event        TriggerEvent
+  whatsapp_message_id  String?
+  delivery_status      DeliveryStatus  @default(SENT)
+  sent_at              DateTime        @default(now())
+
+  order                Order           @relation(fields: [order_id], references: [id])
+  user                 User            @relation(fields: [user_id], references: [id])
+
+  @@map("notifications")
+}

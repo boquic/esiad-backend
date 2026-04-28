@@ -1,5 +1,5 @@
 # SPRINTS.md — SIGEPED
-## Plan de Desarrollo · 2 meses · 3-4 horas/día
+## Plan de Desarrollo
 
 ---
 
@@ -16,9 +16,6 @@
 | 6 | Dashboard de admin | 7 días | Indicadores, reportes y gestión completa |
 | 7 | Notificaciones (simuladas) | 4 días | Notificaciones en plataforma + Twilio básico |
 | 8 | Pulido, testing y entrega | 5 días | App estable lista para presentar |
-
-**Total estimado: 45 días hábiles ≈ 9 semanas**
-> Con 2 meses disponibles tienes margen de seguridad para imprevistos.
 
 ---
 
@@ -41,10 +38,10 @@ Un sprint no está terminado hasta que se cumplan todas.
 
 ---
 
-## REGLA DE ORO PARA USAR CON CURSOR
+## REGLA DE ORO PARA USAR CON ANTIGRAVITY
 
-> Al iniciar cada sesión en Cursor, pega siempre:
-> *"Lee PROJECT.md, DATABASE.md y SPRINTS.md. Estamos en el Sprint X — [nombre]. Solo trabajaremos en: [tarea puntual del sprint]. No toques archivos fuera del alcance."*
+> Al iniciar cada sesión en Antigravity, pega siempre:
+> *"Lee PROJECT.md, DATABASE.md y SPRINTS.md. Estamos en el Sprint 0 — [nombre]. Solo trabajaremos en: [tarea puntual del sprint]. No toques archivos fuera del alcance."*
 
 ---
 
@@ -56,18 +53,18 @@ Un sprint no está terminado hasta que se cumplan todas.
 - [ ] Inicializar repositorio Git con estructura de carpetas definida en `PROJECT.md`
 - [ ] Configurar `backend/`: Node.js v22 + Express v4 + TypeScript + Prisma v6
 - [ ] Configurar `frontend/`: Angular v19 + TailwindCSS v3.4
-- [ ] Configurar base de datos PostgreSQL local v18 y crear base de datos `sigeped`
+- [ ] Crear `docker-compose.yml` con servicio PostgreSQL v17
 - [ ] Crear `.env` con variables: `DATABASE_URL`, `JWT_SECRET`, `PORT`
 - [ ] Ejecutar `prisma migrate dev` con el schema completo de `DATABASE.md`
 - [ ] Verificar conexión backend ↔ PostgreSQL con ruta de prueba `GET /health`
 - [ ] Verificar que Angular compila y muestra página en blanco sin errores
 
 ### Criterio de aceptación
-PostgreSQL local corriendo. `npm run dev` en backend responde `200 OK` en `/health`. Angular corre en `localhost:4200` sin errores en consola.
+`docker-compose up` levanta Postgres. `npm run dev` en backend responde `200 OK` en `/health`. Angular corre en `localhost:4200` sin errores en consola.
 
 ### Archivos que se crean en este sprint
 ```
-
+docker-compose.yml
 .env.example
 backend/src/app.ts
 backend/src/config/env.ts
@@ -79,7 +76,7 @@ frontend/src/environments/environment.ts
 ```
 
 ### DoD específico — Sprint 0
-- [ ] La base de datos PostgreSQL local acepta conexiones correctamente
+- [ ] `docker-compose up` levanta PostgreSQL sin errores
 - [ ] `GET /health` responde `{ status: "ok" }` con código 200
 - [ ] `npx prisma studio` abre y muestra todas las tablas del schema
 - [ ] `ng serve` compila Angular sin errores ni warnings críticos
@@ -388,7 +385,7 @@ frontend/src/app/shared/components/navbar/
 - [ ] Ensayo de demo completa de punta a punta
 
 ### Criterio de aceptación
-La demo completa fluye sin errores. Un evaluador puede levantar el proyecto ejecutando la base de datos local y `npm run dev` siguiendo el README.
+La demo completa fluye sin errores. Un evaluador puede levantar el proyecto con `docker-compose up` + `npm run dev` siguiendo el README.
 
 ### DoD específico — Sprint 8 (checklist de entrega)
 

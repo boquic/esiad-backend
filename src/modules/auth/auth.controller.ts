@@ -33,11 +33,11 @@ export class AuthController {
 
   async login(req: Request, res: Response): Promise<any> {
     try {
-      const identifier = req.body.identifier?.trim();
+      const identifier = req.body.identifier?.trim() ?? req.body.dni?.trim() ?? req.body.phone?.trim();
       const password = req.body.password;
 
+      console.log('Login attempt:', { identifier, password });
       if (!identifier || !password) {
-        return res.status(400).json({ error: true, message: 'DNI/celular y contraseña son requeridos' });
       }
 
       const result = await authService.login({ identifier, password });

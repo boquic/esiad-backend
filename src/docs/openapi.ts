@@ -193,6 +193,24 @@ export const openApiSpec = {
             }
           }
         }
+      },
+      CreateMaterialRequest: {
+        type: 'object',
+        required: ['service_type_id', 'name', 'unit_price', 'unit'],
+        properties: {
+          service_type_id: { type: 'string', format: 'uuid', example: 'f47ac10b-58cc-4372-a567-0e02b2c3d479' },
+          name: { type: 'string', example: 'MDF 3mm' },
+          unit_price: { type: 'number', example: 5.50 },
+          unit: { type: 'string', example: 'unidad' }
+        }
+      },
+      CreateMaterialResponse: {
+        type: 'object',
+        properties: {
+          data: {
+            $ref: '#/components/schemas/Material'
+          }
+        }
       }
     }
   },
@@ -505,6 +523,83 @@ export const openApiSpec = {
           },
           500: {
             description: 'Error del servidor',
+            content: {
+              'application/json': {
+                schema: {
+                  $ref: '#/components/schemas/ErrorResponse'
+                }
+              }
+            }
+          }
+        }
+      },
+      post: {
+        tags: ['Materials'],
+        summary: 'Crea un nuevo material (solo Admin)',
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                $ref: '#/components/schemas/CreateMaterialRequest'
+              }
+            }
+          }
+        },
+        responses: {
+          201: {
+            description: 'Material creado',
+            content: {
+              'application/json': {
+                schema: {
+                  $ref: '#/components/schemas/CreateMaterialResponse'
+                }
+              }
+            }
+          },
+          400: {
+            description: 'Campos faltantes',
+            content: {
+              'application/json': {
+                schema: {
+                  $ref: '#/components/schemas/ErrorResponse'
+                }
+              }
+            }
+          },
+          401: {
+            description: 'No autorizado',
+            content: {
+              'application/json': {
+                schema: {
+                  $ref: '#/components/schemas/ErrorResponse'
+                }
+              }
+            }
+          },
+          403: {
+            description: 'Prohibido - No es Admin',
+            content: {
+              'application/json': {
+                schema: {
+                  $ref: '#/components/schemas/ErrorResponse'
+                }
+              }
+            }
+          },
+          404: {
+            description: 'Tipo de servicio no encontrado',
+            content: {
+              'application/json': {
+                schema: {
+                  $ref: '#/components/schemas/ErrorResponse'
+                }
+              }
+            }
+          },
+          409: {
+            description: 'El material ya existe para este tipo de servicio',
             content: {
               'application/json': {
                 schema: {

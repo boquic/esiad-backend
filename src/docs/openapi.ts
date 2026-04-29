@@ -19,6 +19,14 @@ export const openApiSpec = {
     {
       name: 'Health',
       description: 'Verificación de estado del servicio'
+    },
+    {
+      name: 'Services',
+      description: 'Catálogo de servicios'
+    },
+    {
+      name: 'Materials',
+      description: 'Catálogo de materiales'
     }
   ],
   components: {
@@ -115,6 +123,74 @@ export const openApiSpec = {
         properties: {
           data: {
             $ref: '#/components/schemas/AuthTokenResponse'
+          }
+        }
+      },
+      ServiceType: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', example: 'f47ac10b-58cc-4372-a567-0e02b2c3d479' },
+          name: { type: 'string', example: 'Corte Láser' },
+          pricing_model: { type: 'string', enum: ['FIXED', 'PER_M2', 'PER_UNIT', 'PER_VOLUME'], example: 'PER_UNIT' },
+          is_active: { type: 'boolean', example: true },
+          created_at: { type: 'string', format: 'date-time' }
+        }
+      },
+      ServicesResponse: {
+        type: 'object',
+        properties: {
+          data: {
+            type: 'array',
+            items: {
+              $ref: '#/components/schemas/ServiceType'
+            }
+          }
+        }
+      },
+      CreateServiceRequest: {
+        type: 'object',
+        required: ['name', 'pricing_model'],
+        properties: {
+          name: { type: 'string', example: 'Corte Láser' },
+          pricing_model: { type: 'string', enum: ['FIXED', 'PER_M2', 'PER_UNIT', 'PER_VOLUME'], example: 'PER_UNIT' }
+        }
+      },
+      CreateServiceResponse: {
+        type: 'object',
+        properties: {
+          data: {
+            $ref: '#/components/schemas/ServiceType'
+          }
+        }
+      },
+      UpdateServiceRequest: {
+        type: 'object',
+        properties: {
+          name: { type: 'string', example: 'Corte Láser Modificado' },
+          pricing_model: { type: 'string', enum: ['FIXED', 'PER_M2', 'PER_UNIT', 'PER_VOLUME'], example: 'PER_UNIT' },
+          is_active: { type: 'boolean', example: true }
+        }
+      },
+      Material: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', example: 'd290f1ee-6c54-4b01-90e6-d701748f0851' },
+          service_type_id: { type: 'string', example: 'f47ac10b-58cc-4372-a567-0e02b2c3d479' },
+          name: { type: 'string', example: 'MDF 3mm' },
+          unit_price: { type: 'number', example: 5.50 },
+          unit: { type: 'string', example: 'unidad' },
+          is_active: { type: 'boolean', example: true },
+          created_at: { type: 'string', format: 'date-time' }
+        }
+      },
+      MaterialsResponse: {
+        type: 'object',
+        properties: {
+          data: {
+            type: 'array',
+            items: {
+              $ref: '#/components/schemas/Material'
+            }
           }
         }
       }
@@ -220,6 +296,215 @@ export const openApiSpec = {
           },
           401: {
             description: 'Credenciales inválidas',
+            content: {
+              'application/json': {
+                schema: {
+                  $ref: '#/components/schemas/ErrorResponse'
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    '/api/services': {
+      get: {
+        tags: ['Services'],
+        summary: 'Lista todos los servicios activos',
+        responses: {
+          200: {
+            description: 'Lista de servicios',
+            content: {
+              'application/json': {
+                schema: {
+                  $ref: '#/components/schemas/ServicesResponse'
+                }
+              }
+            }
+          },
+          500: {
+            description: 'Error del servidor',
+            content: {
+              'application/json': {
+                schema: {
+                  $ref: '#/components/schemas/ErrorResponse'
+                }
+              }
+            }
+          }
+        }
+      },
+      post: {
+        tags: ['Services'],
+        summary: 'Crea un nuevo servicio (solo Admin)',
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                $ref: '#/components/schemas/CreateServiceRequest'
+              }
+            }
+          }
+        },
+        responses: {
+          201: {
+            description: 'Servicio creado',
+            content: {
+              'application/json': {
+                schema: {
+                  $ref: '#/components/schemas/CreateServiceResponse'
+                }
+              }
+            }
+          },
+          400: {
+            description: 'Campos faltantes o modelo inválido',
+            content: {
+              'application/json': {
+                schema: {
+                  $ref: '#/components/schemas/ErrorResponse'
+                }
+              }
+            }
+          },
+          401: {
+            description: 'No autorizado',
+            content: {
+              'application/json': {
+                schema: {
+                  $ref: '#/components/schemas/ErrorResponse'
+                }
+              }
+            }
+          },
+          403: {
+            description: 'Prohibido - No es Admin',
+            content: {
+              'application/json': {
+                schema: {
+                  $ref: '#/components/schemas/ErrorResponse'
+                }
+              }
+            }
+          },
+          409: {
+            description: 'Nombre duplicado',
+            content: {
+              'application/json': {
+                schema: {
+                  $ref: '#/components/schemas/ErrorResponse'
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    '/api/services/{id}': {
+      patch: {
+        tags: ['Services'],
+        summary: 'Edita un servicio existente (solo Admin)',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: 'id',
+            in: 'path',
+            required: true,
+            schema: { type: 'string', format: 'uuid' },
+            description: 'ID del servicio'
+          }
+        ],
+        requestBody: {
+          content: {
+            'application/json': {
+              schema: {
+                $ref: '#/components/schemas/UpdateServiceRequest'
+              }
+            }
+          }
+        },
+        responses: {
+          200: {
+            description: 'Servicio actualizado',
+            content: {
+              'application/json': {
+                schema: {
+                  $ref: '#/components/schemas/CreateServiceResponse'
+                }
+              }
+            }
+          },
+          401: {
+            description: 'No autorizado',
+            content: {
+              'application/json': {
+                schema: {
+                  $ref: '#/components/schemas/ErrorResponse'
+                }
+              }
+            }
+          },
+          403: {
+            description: 'Prohibido - No es Admin',
+            content: {
+              'application/json': {
+                schema: {
+                  $ref: '#/components/schemas/ErrorResponse'
+                }
+              }
+            }
+          },
+          404: {
+            description: 'Servicio no encontrado',
+            content: {
+              'application/json': {
+                schema: {
+                  $ref: '#/components/schemas/ErrorResponse'
+                }
+              }
+            }
+          },
+          409: {
+            description: 'Nombre duplicado',
+            content: {
+              'application/json': {
+                schema: {
+                  $ref: '#/components/schemas/ErrorResponse'
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    '/api/materials': {
+      get: {
+        tags: ['Materials'],
+        summary: 'Lista materiales activos',
+        parameters: [
+          {
+            name: 'serviceTypeId',
+            in: 'query',
+            required: false,
+            schema: { type: 'string', format: 'uuid' },
+            description: 'Filtrar por ID de tipo de servicio'
+          }
+        ],
+        responses: {
+          200: {
+            description: 'Lista de materiales',
+            content: {
+              'application/json': {
+                schema: {
+                  $ref: '#/components/schemas/MaterialsResponse'
+                }
+              }
+            }
+          },
+          500: {
+            description: 'Error del servidor',
             content: {
               'application/json': {
                 schema: {

@@ -3,6 +3,8 @@ import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import authRoutes from './modules/auth/auth.routes';
+import servicesRoutes from './modules/services/services.routes';
+import materialsRoutes from './modules/materials/materials.routes';
 import { ENV } from './config/env';
 import { prisma, connectDatabase } from './config/database';
 import swaggerUi from 'swagger-ui-express';
@@ -16,6 +18,8 @@ app.use(helmet());
 app.use(morgan('dev'));
 
 app.use('/api/auth', authRoutes);
+app.use('/api/services', servicesRoutes);
+app.use('/api/materials', materialsRoutes);
 
 app.get('/api/openapi.json', (req: Request, res: Response) => {
   res.json(openApiSpec);

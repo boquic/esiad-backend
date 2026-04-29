@@ -211,6 +211,15 @@ export const openApiSpec = {
             $ref: '#/components/schemas/Material'
           }
         }
+      },
+      UpdateMaterialRequest: {
+        type: 'object',
+        properties: {
+          name: { type: 'string', example: 'MDF 3mm Modificado' },
+          unit_price: { type: 'number', example: 6.00 },
+          unit: { type: 'string', example: 'unidad' },
+          is_active: { type: 'boolean', example: true }
+        }
       }
     }
   },
@@ -590,6 +599,83 @@ export const openApiSpec = {
           },
           404: {
             description: 'Tipo de servicio no encontrado',
+            content: {
+              'application/json': {
+                schema: {
+                  $ref: '#/components/schemas/ErrorResponse'
+                }
+              }
+            }
+          },
+          409: {
+            description: 'El material ya existe para este tipo de servicio',
+            content: {
+              'application/json': {
+                schema: {
+                  $ref: '#/components/schemas/ErrorResponse'
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    '/api/materials/{id}': {
+      patch: {
+        tags: ['Materials'],
+        summary: 'Edita un material existente (solo Admin)',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: 'id',
+            in: 'path',
+            required: true,
+            schema: { type: 'string', format: 'uuid' },
+            description: 'ID del material'
+          }
+        ],
+        requestBody: {
+          content: {
+            'application/json': {
+              schema: {
+                $ref: '#/components/schemas/UpdateMaterialRequest'
+              }
+            }
+          }
+        },
+        responses: {
+          200: {
+            description: 'Material actualizado',
+            content: {
+              'application/json': {
+                schema: {
+                  $ref: '#/components/schemas/CreateMaterialResponse'
+                }
+              }
+            }
+          },
+          401: {
+            description: 'No autorizado',
+            content: {
+              'application/json': {
+                schema: {
+                  $ref: '#/components/schemas/ErrorResponse'
+                }
+              }
+            }
+          },
+          403: {
+            description: 'Prohibido - No es Admin',
+            content: {
+              'application/json': {
+                schema: {
+                  $ref: '#/components/schemas/ErrorResponse'
+                }
+              }
+            }
+          },
+          404: {
+            description: 'Material no encontrado',
             content: {
               'application/json': {
                 schema: {

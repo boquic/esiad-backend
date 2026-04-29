@@ -57,4 +57,31 @@ export class MaterialsService {
       },
     });
   }
+
+  async update(id: string, data: { name?: string; unit_price?: number; unit?: string; is_active?: boolean }) {
+    // Si se intenta actualizar el nombre, verificamos que no esté en uso por otro material del mismo servicio
+    if (data.name) {
+      const currentMaterial = await prisma.material.findUnique({ where: { id } });
+      if (!currentMaterial) {
+        throw new Error('Material no encontrado');
+      }
+
+      const existingMaterial = await prisma.material.findFirst({
+        where: {
+          service_type_id: currentMaterial.service_type_id,
+          name: data.name,
+          NOT: { id },
+        },
+      });
+
+      if (existingMaterial) {
+        throw new Error('El material ya existe para este tipo de servicio');
+      }
+    }
+
+    return await prisma.material.update({
+      where: { id },
+      data,
+    });
+  }
 }

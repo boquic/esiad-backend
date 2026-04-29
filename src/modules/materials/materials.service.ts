@@ -84,4 +84,18 @@ export class MaterialsService {
       data,
     });
   }
+
+  async toggle(id: string) {
+    const material = await prisma.material.findUnique({ where: { id } });
+    if (!material) {
+      throw new Error('Material no encontrado');
+    }
+
+    return await prisma.material.update({
+      where: { id },
+      data: {
+        is_active: !material.is_active,
+      },
+    });
+  }
 }

@@ -52,4 +52,17 @@ export class MaterialsController {
       return res.status(500).json({ error: true, message: 'Error interno del servidor' });
     }
   }
+
+  async toggle(req: Request, res: Response): Promise<any> {
+    try {
+      const { id } = req.params;
+      const material = await materialsService.toggle(id);
+      return res.status(200).json({ data: material });
+    } catch (error: any) {
+      if (error.message === 'Material no encontrado' || error.code === 'P2025') {
+        return res.status(404).json({ error: true, message: 'Material no encontrado' });
+      }
+      return res.status(500).json({ error: true, message: 'Error interno del servidor' });
+    }
+  }
 }

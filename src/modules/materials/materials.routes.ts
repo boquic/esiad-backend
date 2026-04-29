@@ -9,5 +9,6 @@ const materialsController = new MaterialsController();
 router.get('/', materialsController.findAll.bind(materialsController));
 router.post('/', authMiddleware, requireRole(['ADMIN']), materialsController.create.bind(materialsController));
 router.patch('/:id', authMiddleware, requireRole(['ADMIN']), materialsController.update.bind(materialsController));
+router.patch('/:id/toggle', authMiddleware, requireRole(['ADMIN']), materialsController.toggle.bind(materialsController));
 
 export default router;

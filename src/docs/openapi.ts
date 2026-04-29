@@ -696,6 +696,64 @@ export const openApiSpec = {
           }
         }
       }
+    },
+    '/api/materials/{id}/toggle': {
+      patch: {
+        tags: ['Materials'],
+        summary: 'Activa/Desactiva un material (solo Admin)',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: 'id',
+            in: 'path',
+            required: true,
+            schema: { type: 'string', format: 'uuid' },
+            description: 'ID del material'
+          }
+        ],
+        responses: {
+          200: {
+            description: 'Estado cambiado',
+            content: {
+              'application/json': {
+                schema: {
+                  $ref: '#/components/schemas/CreateMaterialResponse'
+                }
+              }
+            }
+          },
+          401: {
+            description: 'No autorizado',
+            content: {
+              'application/json': {
+                schema: {
+                  $ref: '#/components/schemas/ErrorResponse'
+                }
+              }
+            }
+          },
+          403: {
+            description: 'Prohibido - No es Admin',
+            content: {
+              'application/json': {
+                schema: {
+                  $ref: '#/components/schemas/ErrorResponse'
+                }
+              }
+            }
+          },
+          404: {
+            description: 'Material no encontrado',
+            content: {
+              'application/json': {
+                schema: {
+                  $ref: '#/components/schemas/ErrorResponse'
+                }
+              }
+            }
+          }
+        }
+      }
     }
   }
 } as const;

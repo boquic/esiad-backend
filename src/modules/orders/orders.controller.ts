@@ -7,7 +7,7 @@ const ordersService = new OrdersService();
 export class OrdersController {
   async create(req: Request, res: Response): Promise<any> {
     try {
-      const clientId = req.user.id;
+      const clientId = req.user.id as string;
       const { service_type_id, material_id, quantity, area, volume, notes } = req.body;
 
       if (!service_type_id || !material_id) {
@@ -43,7 +43,7 @@ export class OrdersController {
 
   async findMyOrders(req: Request, res: Response): Promise<any> {
     try {
-      const clientId = req.user.id;
+      const clientId = req.user.id as string;
       const orders = await ordersService.findByClientId(clientId);
       return res.status(200).json({ data: orders });
     } catch (error: any) {
@@ -54,8 +54,8 @@ export class OrdersController {
 
   async findById(req: Request, res: Response): Promise<any> {
     try {
-      const clientId = req.user.id;
-      const { id } = req.params;
+      const clientId = req.user.id as string;
+      const id = req.params.id as string;
 
       const order = await ordersService.findById(id, clientId);
 
@@ -72,8 +72,8 @@ export class OrdersController {
 
   async uploadFile(req: Request, res: Response): Promise<any> {
     try {
-      const clientId = req.user.id;
-      const { id } = req.params;
+      const clientId = req.user.id as string;
+      const id = req.params.id as string;
       const file = req.file;
 
       if (!file) {
@@ -105,8 +105,8 @@ export class OrdersController {
 
   async confirmBudget(req: Request, res: Response): Promise<any> {
     try {
-      const clientId = req.user.id;
-      const { id } = req.params;
+      const clientId = req.user.id as string;
+      const id = req.params.id as string;
 
       const order = await ordersService.confirmBudget(id, clientId);
 

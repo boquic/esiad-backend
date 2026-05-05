@@ -99,4 +99,81 @@ export class OrdersService {
       },
     });
   }
+
+  async findByClientId(clientId: string) {
+    return await prisma.order.findMany({
+      where: {
+        client_id: clientId,
+      },
+      include: {
+        service_type: true,
+        material: true,
+      },
+      orderBy: {
+        created_at: 'desc',
+      },
+    });
+  }
+
+  async findById(id: string, clientId: string) {
+    return await prisma.order.findFirst({
+      where: {
+        id,
+        client_id: clientId,
+      },
+      include: {
+        service_type: true,
+        material: true,
+        files: true,
+        payments: true,
+      },
+    });
+  }
+
+  async addFile(orderId: string, clientId: string, fileData: { file_url: string, file_type: any }) {
+    // Verificar que el pedido existe y pertenece al cliente
+    const order = await prisma.order.findFirst({
+      where: {
+        id: orderId,
+        client_id: clientId
+      }
+    });
+
+    if (!order) {
+      throw new Error('Pedido no encontrado o no tienes permiso');
+    }
+
+    return await prisma.orderFile.create({
+      data: {
+        order_id: orderId,
+        ...fileData
+      }
+    });
+  }
+
+  async confirmBudget(orderId: string, clientId: string) {
+    const order = await prisma.order.findFirst({
+      where: {
+        id: orderId,
+        client_id: clientId,
+      }
+    });
+
+    if (!order) {
+      throw new Error('Pedido no encontrado');
+    }
+
+    if (order.status !== 'BUDGETED') {
+      throw new Error(`No se puede confirmar un pedido en estado ${order.status}`);
+    }
+
+    if (order.budget_expires_at < new Date()) {
+      throw new Error('El presupuesto ha expirado');
+    }
+
+    return await prisma.order.update({
+      where: { id: orderId },
+      data: { status: 'PENDING_PAYMENT' }
+    });
+  }
 }

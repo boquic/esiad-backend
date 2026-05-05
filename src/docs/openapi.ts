@@ -27,6 +27,10 @@ export const openApiSpec = {
     {
       name: 'Materials',
       description: 'Catálogo de materiales'
+    },
+    {
+      name: 'Orders',
+      description: 'Gestión de pedidos (clientes)'
     }
   ],
   components: {
@@ -219,6 +223,76 @@ export const openApiSpec = {
           unit_price: { type: 'number', example: 6.00 },
           unit: { type: 'string', example: 'unidad' },
           is_active: { type: 'boolean', example: true }
+        }
+      },
+      Order: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', example: 'a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d' },
+          client_id: { type: 'string', example: '8b0c2c8f-5f26-4f88-9c78-8d7f3c4f2c1a' },
+          service_type_id: { type: 'string', example: 'f47ac10b-58cc-4372-a567-0e02b2c3d479' },
+          material_id: { type: 'string', example: 'd290f1ee-6c54-4b01-90e6-d701748f0851' },
+          status: { type: 'string', enum: ['BUDGETED', 'PENDING_PAYMENT', 'IN_PROGRESS', 'READY', 'DELIVERED', 'CANCELLED', 'EXPIRED'], example: 'BUDGETED' },
+          payment_condition: { type: 'string', enum: ['ADVANCE_50', 'CASH_ON_DELIVERY'], example: 'ADVANCE_50' },
+          estimated_price: { type: 'number', example: 150.00 },
+          advance_amount: { type: 'number', nullable: true, example: 75.00 },
+          budget_expires_at: { type: 'string', format: 'date-time' },
+          notes: { type: 'string', nullable: true, example: 'Corte con borde pulido' },
+          created_at: { type: 'string', format: 'date-time' },
+          service_type: { $ref: '#/components/schemas/ServiceType' },
+          material: { $ref: '#/components/schemas/Material' },
+          files: { type: 'array', items: { $ref: '#/components/schemas/OrderFile' } },
+          payments: { type: 'array', items: { $ref: '#/components/schemas/Payment' } }
+        }
+      },
+      CreateOrderRequest: {
+        type: 'object',
+        required: ['service_type_id', 'material_id'],
+        properties: {
+          service_type_id: { type: 'string', format: 'uuid', example: 'f47ac10b-58cc-4372-a567-0e02b2c3d479' },
+          material_id: { type: 'string', format: 'uuid', example: 'd290f1ee-6c54-4b01-90e6-d701748f0851' },
+          quantity: { type: 'number', example: 10 },
+          area: { type: 'number', example: 2.5 },
+          volume: { type: 'number', example: 100 },
+          notes: { type: 'string', example: 'Notas adicionales' }
+        }
+      },
+      OrderResponse: {
+        type: 'object',
+        properties: {
+          data: { $ref: '#/components/schemas/Order' }
+        }
+      },
+      OrdersListResponse: {
+        type: 'object',
+        properties: {
+          data: {
+            type: 'array',
+            items: { $ref: '#/components/schemas/Order' }
+          }
+        }
+      },
+      OrderFile: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', example: 'e1f2a3b4-c5d6-4e5f-8g9h-0i1j2k3l4m5n' },
+          order_id: { type: 'string', example: 'a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d' },
+          file_url: { type: 'string', example: '/uploads/plano-123.pdf' },
+          file_type: { type: 'string', enum: ['PLAN_DWG', 'PLAN_DXF', 'PLAN_PDF'], example: 'PLAN_PDF' },
+          uploaded_at: { type: 'string', format: 'date-time' }
+        }
+      },
+      Payment: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', example: 'p1q2r3s4-t5u6-4v5w-8x9y-0z1a2b3c4d5e' },
+          order_id: { type: 'string', example: 'a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d' },
+          amount: { type: 'number', example: 75.00 },
+          payment_type: { type: 'string', enum: ['ADVANCE', 'FINAL'], example: 'ADVANCE' },
+          status: { type: 'string', enum: ['PENDING', 'APPROVED', 'REJECTED'], example: 'PENDING' },
+          capture_url: { type: 'string', nullable: true, example: '/uploads/pago-123.jpg' },
+          admin_comment: { type: 'string', nullable: true, example: 'Comprobante válido' },
+          created_at: { type: 'string', format: 'date-time' }
         }
       }
     }
@@ -751,6 +825,203 @@ export const openApiSpec = {
                 }
               }
             }
+          }
+        }
+      }
+    },
+    '/api/orders': {
+      post: {
+        tags: ['Orders'],
+        summary: 'Crea un nuevo pedido (solo Cliente)',
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/CreateOrderRequest' }
+            }
+          }
+        },
+        responses: {
+          201: {
+            description: 'Pedido creado y presupuesto generado',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/OrderResponse' }
+              }
+            }
+          },
+          400: {
+            description: 'Campos faltantes o datos inválidos',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorResponse' }
+              }
+            }
+          },
+          409: {
+            description: 'Ya existe un pedido de este tipo en progreso (RN#6)',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorResponse' }
+              }
+            }
+          }
+        }
+      }
+    },
+    '/api/orders/my': {
+      get: {
+        tags: ['Orders'],
+        summary: 'Lista los pedidos del cliente autenticado',
+        security: [{ bearerAuth: [] }],
+        responses: {
+          200: {
+            description: 'Lista de pedidos del cliente',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/OrdersListResponse' }
+              }
+            }
+          },
+          401: {
+            description: 'No autorizado'
+          }
+        }
+      }
+    },
+    '/api/orders/{id}': {
+      get: {
+        tags: ['Orders'],
+        summary: 'Ver detalle de un pedido (solo Cliente propietario)',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: 'id',
+            in: 'path',
+            required: true,
+            schema: { type: 'string', format: 'uuid' },
+            description: 'ID del pedido'
+          }
+        ],
+        responses: {
+          200: {
+            description: 'Detalle del pedido',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/OrderResponse' }
+              }
+            }
+          },
+          401: {
+            description: 'No autorizado'
+          },
+          404: {
+            description: 'Pedido no encontrado',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorResponse' }
+              }
+            }
+          }
+        }
+      }
+    },
+    '/api/orders/{id}/files': {
+      post: {
+        tags: ['Orders'],
+        summary: 'Sube un plano para un pedido (solo Cliente propietario)',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: 'id',
+            in: 'path',
+            required: true,
+            schema: { type: 'string', format: 'uuid' },
+            description: 'ID del pedido'
+          }
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            'multipart/form-data': {
+              schema: {
+                type: 'object',
+                properties: {
+                  file: {
+                    type: 'string',
+                    format: 'binary',
+                    description: 'Archivo de plano (.dwg, .dxf, .pdf)'
+                  }
+                }
+              }
+            }
+          }
+        },
+        responses: {
+          201: {
+            description: 'Archivo subido correctamente',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    data: { $ref: '#/components/schemas/OrderFile' }
+                  }
+                }
+              }
+            }
+          },
+          400: {
+            description: 'Error en el archivo (formato o tamaño)',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorResponse' }
+              }
+            }
+          },
+          404: {
+            description: 'Pedido no encontrado o sin permiso'
+          }
+        }
+      }
+    },
+    '/api/orders/{id}/confirm': {
+      post: {
+        tags: ['Orders'],
+        summary: 'Confirma el presupuesto de un pedido (solo Cliente propietario)',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: 'id',
+            in: 'path',
+            required: true,
+            schema: { type: 'string', format: 'uuid' },
+            description: 'ID del pedido'
+          }
+        ],
+        responses: {
+          200: {
+            description: 'Presupuesto confirmado, estado cambiado a PENDING_PAYMENT',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/OrderResponse' }
+              }
+            }
+          },
+          400: {
+            description: 'Presupuesto expirado o pedido en estado incorrecto',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorResponse' }
+              }
+            }
+          },
+          401: {
+            description: 'No autorizado'
+          },
+          404: {
+            description: 'Pedido no encontrado o sin permiso'
           }
         }
       }

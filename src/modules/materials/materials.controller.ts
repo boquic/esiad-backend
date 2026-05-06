@@ -40,7 +40,7 @@ export class MaterialsController {
       const { id } = req.params;
       const { name, unit_price, unit, is_active } = req.body;
 
-      const material = await materialsService.update(id, { name, unit_price, unit, is_active });
+      const material = await materialsService.update(id as string, { name, unit_price, unit, is_active });
       return res.status(200).json({ data: material });
     } catch (error: any) {
       if (error.message === 'Material no encontrado' || error.code === 'P2025') {
@@ -56,7 +56,7 @@ export class MaterialsController {
   async toggle(req: Request, res: Response): Promise<any> {
     try {
       const { id } = req.params;
-      const material = await materialsService.toggle(id);
+      const material = await materialsService.toggle(id as string);
       return res.status(200).json({ data: material });
     } catch (error: any) {
       if (error.message === 'Material no encontrado' || error.code === 'P2025') {

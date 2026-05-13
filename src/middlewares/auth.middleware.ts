@@ -1,12 +1,19 @@
+import { Role } from '@prisma/client';
 import { Request, Response, NextFunction } from 'express';
+import { JwtPayload } from 'jsonwebtoken';
 import jwt from 'jsonwebtoken';
 import { ENV } from '../config/env';
 
-// Extendemos globalmente la interfaz Request de Express para inyectar el usuario
+type AuthenticatedUser = JwtPayload & {
+  id: string;
+  role: Role;
+  is_frequent: boolean;
+};
+
 declare global {
   namespace Express {
     interface Request {
-      user?: any;
+      user: AuthenticatedUser;
     }
   }
 }
@@ -22,10 +29,10 @@ export const authMiddleware = (req: Request, res: Response, next: NextFunction):
   const token = authHeader.split(' ')[1];
 
   try {
-    const decoded = jwt.verify(token, ENV.JWT_SECRET);
-    req.user = decoded; // Inyectamos el payload del token (id, role, is_frequent) en el objeto request
+    const decoded = jwt.verify(token, ENV.JWT_SECRET) as AuthenticatedUser;
+    req.user = decoded;
     next();
-  } catch (error) {
-    res.status(401).json({ error: true, message: 'Token inválido o expirado' });
+  } catch {
+    res.status(401).json({ error: true, message: 'Token invalido o expirado' });
   }
 };

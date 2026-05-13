@@ -948,6 +948,43 @@ export const openApiSpec = {
         }
       }
     },
+    '/api/admin/stats/orders-by-status': {
+      get: {
+        tags: ['Admin'],
+        summary: 'Obtiene la distribución de pedidos por estado (solo Admin)',
+        security: [{ bearerAuth: [] }],
+        responses: {
+          200: {
+            description: 'Estadísticas obtenidas exitosamente',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    data: {
+                      type: 'array',
+                      items: {
+                        type: 'object',
+                        properties: {
+                          status: { type: 'string', example: 'IN_PROGRESS' },
+                          count: { type: 'number', example: 10 }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          401: {
+            description: 'No autorizado'
+          },
+          403: {
+            description: 'Prohibido - No es Admin'
+          }
+        }
+      }
+    },
     '/api/auth/register': {
       post: {
         tags: ['Auth'],

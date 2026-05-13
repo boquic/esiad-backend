@@ -26,4 +26,11 @@ router.patch(
   operatorsController.updateOrderStatus
 );
 
+router.patch(
+  '/orders/:id/notes',
+  authMiddleware,
+  requireRole(['OPERATOR']),
+  operatorsController.updateOrderNotes
+);
+
 export default router;

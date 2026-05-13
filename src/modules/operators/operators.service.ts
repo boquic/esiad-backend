@@ -116,4 +116,34 @@ export class OperatorsService {
     const { estimated_price, advance_amount, payments, ...safeOrder } = updatedOrder as any;
     return safeOrder;
   }
+
+  async updateOrderNotes(userId: string, orderId: string, notes: string) {
+    const operator = await prisma.operator.findUnique({
+      where: { user_id: userId }
+    });
+
+    if (!operator) {
+      throw new Error('Operario no encontrado');
+    }
+
+    const order = await prisma.order.findFirst({
+      where: { id: orderId }
+    });
+
+    if (!order) {
+      throw new Error('Pedido no encontrado');
+    }
+
+    if (order.operator_id !== operator.id) {
+      throw new Error('No puedes agregar notas a un pedido que no te fue asignado');
+    }
+
+    const updatedOrder = await prisma.order.update({
+      where: { id: orderId },
+      data: { notes }
+    });
+
+    const { estimated_price, advance_amount, payments, ...safeOrder } = updatedOrder as any;
+    return safeOrder;
+  }
 }

@@ -62,6 +62,32 @@ export class OperatorsController {
       next(error);
     }
   }
+
+  async updateOrderNotes(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const userId = (req as any).user.id;
+      const id = req.params.id as string;
+      const { notes } = req.body;
+      
+      if (notes === undefined) {
+        res.status(400).json({ error: true, message: 'El campo notes es requerido' });
+        return;
+      }
+
+      const order = await operatorsService.updateOrderNotes(userId, id, notes);
+      res.status(200).json({ data: order });
+    } catch (error: any) {
+      if (error.message === 'No puedes agregar notas a un pedido que no te fue asignado') {
+        res.status(403).json({ error: true, message: error.message });
+        return;
+      }
+      if (error.message === 'Operario no encontrado' || error.message === 'Pedido no encontrado') {
+        res.status(404).json({ error: true, message: error.message });
+        return;
+      }
+      next(error);
+    }
+  }
 }
 
 export const operatorsController = new OperatorsController();

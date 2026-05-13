@@ -457,6 +457,63 @@ export const openApiSpec = {
         }
       }
     },
+    '/api/operator/orders/{id}/notes': {
+      patch: {
+        tags: ['Operator'],
+        summary: 'Agregar o editar notas internas (solo Operario)',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: 'id',
+            in: 'path',
+            required: true,
+            schema: { type: 'string', format: 'uuid' },
+            description: 'ID del pedido'
+          }
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['notes'],
+                properties: {
+                  notes: {
+                    type: 'string',
+                    example: 'El archivo SVG tenía capas ocultas, se ajustó.'
+                  }
+                }
+              }
+            }
+          }
+        },
+        responses: {
+          200: {
+            description: 'Notas actualizadas exitosamente',
+            content: {
+              'application/json': {
+                schema: {
+                  $ref: '#/components/schemas/OrderResponse'
+                }
+              }
+            }
+          },
+          400: {
+            description: 'Falta el campo notes'
+          },
+          401: {
+            description: 'No autorizado'
+          },
+          403: {
+            description: 'Prohibido - Pedido no asignado'
+          },
+          404: {
+            description: 'Pedido no encontrado'
+          }
+        }
+      }
+    },
     '/api/auth/register': {
       post: {
         tags: ['Auth'],

@@ -76,6 +76,15 @@ export class AdminController {
       next(error);
     }
   }
+
+  async getServicesStats(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const stats = await adminService.getServicesStats();
+      res.status(200).json({ data: stats });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const adminController = new AdminController();

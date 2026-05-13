@@ -40,4 +40,11 @@ router.get(
   adminController.getSalesStats
 );
 
+router.get(
+  '/stats/services',
+  authMiddleware,
+  requireRole(['ADMIN']),
+  adminController.getServicesStats
+);
+
 export default router;

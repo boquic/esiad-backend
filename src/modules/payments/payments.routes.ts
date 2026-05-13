@@ -1,24 +1,31 @@
-import { Router } from 'express';
+import { NextFunction, Request, Response, Router } from 'express';
 import { paymentsController } from './payments.controller';
 import { authMiddleware } from '../../middlewares/auth.middleware';
 import { requireRole } from '../../middlewares/role.middleware';
-import { uploadImageMiddleware } from '../../middlewares/upload.middleware';
+import { buildUploadErrorResponse, uploadImageMiddleware } from '../../middlewares/upload.middleware';
 
 const router = Router();
+
+const handlePaymentCaptureUpload = (req: Request, res: Response, next: NextFunction): void => {
+  const upload = uploadImageMiddleware.single('capture');
+
+  upload(req, res, (error: unknown) => {
+    const uploadError = buildUploadErrorResponse(error);
+
+    if (uploadError) {
+      res.status(uploadError.status).json({ error: true, message: uploadError.message });
+      return;
+    }
+
+    next();
+  });
+};
 
 router.post(
   '/',
   authMiddleware,
   requireRole(['CLIENT']),
-  (req, res, next) => {
-    const upload = uploadImageMiddleware.single('capture');
-    upload(req, res, (err: any) => {
-      if (err) {
-        return res.status(400).json({ error: true, message: err.message });
-      }
-      next();
-    });
-  },
+  handlePaymentCaptureUpload,
   paymentsController.createPayment
 );
 

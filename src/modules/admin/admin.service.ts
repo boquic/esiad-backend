@@ -181,6 +181,35 @@ export class AdminService {
 
     return { totalSales, dailySales };
   }
+
+  async getServicesStats() {
+    const orders = await prisma.order.groupBy({
+      by: ['service_type_id'],
+      _count: {
+        id: true
+      }
+    });
+
+    const services = await prisma.serviceType.findMany({
+      select: {
+        id: true,
+        name: true
+      }
+    });
+
+    const ranking = orders.map(orderGroup => {
+      const service = services.find(s => s.id === orderGroup.service_type_id);
+      return {
+        service_id: orderGroup.service_type_id,
+        service_name: service ? service.name : 'Desconocido',
+        count: orderGroup._count.id
+      };
+    });
+
+    ranking.sort((a, b) => b.count - a.count);
+
+    return ranking;
+  }
 }
 
 export const adminService = new AdminService();

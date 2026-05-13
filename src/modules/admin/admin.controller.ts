@@ -94,6 +94,24 @@ export class AdminController {
       next(error);
     }
   }
+
+  async getOperatorsStats(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const stats = await adminService.getOperatorsStats();
+      res.status(200).json({ data: stats });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async getOrdersByStatusStats(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const stats = await adminService.getOrdersByStatusStats();
+      res.status(200).json({ data: stats });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const adminController = new AdminController();

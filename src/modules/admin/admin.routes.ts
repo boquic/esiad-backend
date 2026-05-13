@@ -54,4 +54,18 @@ router.get(
   adminController.getTopClients
 );
 
+router.get(
+  '/stats/operators',
+  authMiddleware,
+  requireRole(['ADMIN']),
+  adminController.getOperatorsStats
+);
+
+router.get(
+  '/stats/orders-by-status',
+  authMiddleware,
+  requireRole(['ADMIN']),
+  adminController.getOrdersByStatusStats
+);
+
 export default router;

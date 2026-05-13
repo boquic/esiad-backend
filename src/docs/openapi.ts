@@ -908,6 +908,46 @@ export const openApiSpec = {
         }
       }
     },
+    '/api/admin/stats/operators': {
+      get: {
+        tags: ['Admin'],
+        summary: 'Obtiene estadísticas de los operarios: pedidos atendidos y tiempo promedio en horas (solo Admin)',
+        security: [{ bearerAuth: [] }],
+        responses: {
+          200: {
+            description: 'Estadísticas obtenidas exitosamente',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    data: {
+                      type: 'array',
+                      items: {
+                        type: 'object',
+                        properties: {
+                          operator_id: { type: 'string', format: 'uuid' },
+                          first_name: { type: 'string', example: 'Pedro' },
+                          last_name: { type: 'string', example: 'Gómez' },
+                          orders_attended: { type: 'number', example: 45 },
+                          average_time_hours: { type: 'number', example: 2.5 }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          401: {
+            description: 'No autorizado'
+          },
+          403: {
+            description: 'Prohibido - No es Admin'
+          }
+        }
+      }
+    },
     '/api/auth/register': {
       post: {
         tags: ['Auth'],

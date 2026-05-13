@@ -229,6 +229,71 @@ export class AdminService {
 
     return clients;
   }
+
+  async getOperatorsStats() {
+    const operators = await prisma.operator.findMany({
+      include: {
+        user: {
+          select: {
+            first_name: true,
+            last_name: true
+          }
+        },
+        orders: {
+          where: {
+            status: { in: ['READY', 'DELIVERED'] }
+          },
+          select: {
+            created_at: true,
+            updated_at: true
+          }
+        }
+      }
+    });
+
+    const stats = operators.map(op => {
+      const ordersCount = op.orders.length;
+      let averageTimeHours = 0;
+
+      if (ordersCount > 0) {
+        const totalMs = op.orders.reduce((acc, order) => {
+          const diff = order.updated_at.getTime() - order.created_at.getTime();
+          return acc + diff;
+        }, 0);
+        
+        const averageMs = totalMs / ordersCount;
+        averageTimeHours = Number((averageMs / (1000 * 60 * 60)).toFixed(2));
+      }
+
+      return {
+        operator_id: op.id,
+        first_name: op.user.first_name,
+        last_name: op.user.last_name,
+        orders_attended: ordersCount,
+        average_time_hours: averageTimeHours
+      };
+    });
+
+    stats.sort((a, b) => b.orders_attended - a.orders_attended);
+
+    return stats;
+  }
+
+  async getOrdersByStatusStats() {
+    const ordersGrouped = await prisma.order.groupBy({
+      by: ['status'],
+      _count: {
+        id: true
+      }
+    });
+
+    const stats = ordersGrouped.map(group => ({
+      status: group.status,
+      count: group._count.id
+    }));
+
+    return stats;
+  }
 }
 
 export const adminService = new AdminService();

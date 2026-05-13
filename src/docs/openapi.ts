@@ -605,6 +605,49 @@ export const openApiSpec = {
         }
       }
     },
+    '/api/admin/payments/{id}/approve': {
+      patch: {
+        tags: ['Admin'],
+        summary: 'Aprueba una captura de pago y cambia el estado del pedido a IN_PROGRESS (solo Admin)',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: 'id',
+            in: 'path',
+            required: true,
+            schema: { type: 'string', format: 'uuid' },
+            description: 'ID del pago a aprobar'
+          }
+        ],
+        responses: {
+          200: {
+            description: 'Pago aprobado',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    data: { $ref: '#/components/schemas/Payment' }
+                  }
+                }
+              }
+            }
+          },
+          400: {
+            description: 'El pago no está pendiente de revisión'
+          },
+          401: {
+            description: 'No autorizado'
+          },
+          403: {
+            description: 'Prohibido - No es Admin'
+          },
+          404: {
+            description: 'Pago no encontrado'
+          }
+        }
+      }
+    },
     '/api/auth/register': {
       post: {
         tags: ['Auth'],

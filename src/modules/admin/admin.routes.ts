@@ -12,4 +12,11 @@ router.get(
   adminController.getPendingPayments
 );
 
+router.patch(
+  '/payments/:id/approve',
+  authMiddleware,
+  requireRole(['ADMIN']),
+  adminController.approvePayment
+);
+
 export default router;

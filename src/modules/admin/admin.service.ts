@@ -210,6 +210,25 @@ export class AdminService {
 
     return ranking;
   }
+
+  async getTopClients() {
+    const clients = await prisma.user.findMany({
+      where: { role: 'CLIENT' },
+      orderBy: { completed_orders_count: 'desc' },
+      take: 10,
+      select: {
+        id: true,
+        first_name: true,
+        last_name: true,
+        dni: true,
+        phone: true,
+        completed_orders_count: true,
+        is_frequent: true
+      }
+    });
+
+    return clients;
+  }
 }
 
 export const adminService = new AdminService();

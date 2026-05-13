@@ -866,6 +866,48 @@ export const openApiSpec = {
         }
       }
     },
+    '/api/admin/stats/clients': {
+      get: {
+        tags: ['Admin'],
+        summary: 'Obtiene el top 10 de clientes ordenados por pedidos completados (solo Admin)',
+        security: [{ bearerAuth: [] }],
+        responses: {
+          200: {
+            description: 'Lista obtenida exitosamente',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    data: {
+                      type: 'array',
+                      items: {
+                        type: 'object',
+                        properties: {
+                          id: { type: 'string', format: 'uuid' },
+                          first_name: { type: 'string', example: 'Juan' },
+                          last_name: { type: 'string', example: 'Pérez' },
+                          dni: { type: 'string', example: '71234567' },
+                          phone: { type: 'string', example: '987654321' },
+                          completed_orders_count: { type: 'number', example: 12 },
+                          is_frequent: { type: 'boolean', example: true }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          401: {
+            description: 'No autorizado'
+          },
+          403: {
+            description: 'Prohibido - No es Admin'
+          }
+        }
+      }
+    },
     '/api/auth/register': {
       post: {
         tags: ['Auth'],

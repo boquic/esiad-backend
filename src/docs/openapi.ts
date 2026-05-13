@@ -39,6 +39,10 @@ export const openApiSpec = {
     {
       name: 'Payments',
       description: 'Gestión de pagos y validación'
+    },
+    {
+      name: 'Admin',
+      description: 'Gestión y reportes de administrador'
     }
   ],
   components: {
@@ -566,6 +570,37 @@ export const openApiSpec = {
           },
           409: {
             description: 'Ya existe una captura pendiente para el pedido'
+          }
+        }
+      }
+    },
+    '/api/admin/payments/pending': {
+      get: {
+        tags: ['Admin'],
+        summary: 'Lista los pagos pendientes de revisión (solo Admin)',
+        security: [{ bearerAuth: [] }],
+        responses: {
+          200: {
+            description: 'Lista de pagos pendientes',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    data: {
+                      type: 'array',
+                      items: { $ref: '#/components/schemas/Payment' }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          401: {
+            description: 'No autorizado'
+          },
+          403: {
+            description: 'Prohibido - No es Admin'
           }
         }
       }

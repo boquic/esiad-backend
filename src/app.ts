@@ -8,6 +8,7 @@ import materialsRoutes from './modules/materials/materials.routes';
 import ordersRoutes from './modules/orders/orders.routes';
 import operatorsRoutes from './modules/operators/operators.routes';
 import paymentsRoutes from './modules/payments/payments.routes';
+import adminRoutes from './modules/admin/admin.routes';
 import { ENV } from './config/env';
 import { prisma, connectDatabase } from './config/database';
 import swaggerUi from 'swagger-ui-express';
@@ -26,6 +27,7 @@ app.use('/api/materials', materialsRoutes);
 app.use('/api/orders', ordersRoutes);
 app.use('/api/operator', operatorsRoutes);
 app.use('/api/payments', paymentsRoutes);
+app.use('/api/admin', adminRoutes);
 
 app.get('/api/openapi.json', (req: Request, res: Response) => {
   res.json(openApiSpec);

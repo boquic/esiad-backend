@@ -1,5 +1,5 @@
 import { prisma } from '../../config/database';
-import { Decimal } from '@prisma/client';
+import { FileType, Prisma } from '@prisma/client';
 
 export class OrdersService {
   async create(clientId: string, data: {
@@ -43,7 +43,7 @@ export class OrdersService {
     }
 
     // 3. Calcular Precio Estimado según PricingModel
-    let estimatedPrice = new Decimal(0);
+    let estimatedPrice = new Prisma.Decimal(0);
 
     switch (serviceType.pricing_model) {
       case 'FIXED':
@@ -130,7 +130,7 @@ export class OrdersService {
     });
   }
 
-  async addFile(orderId: string, clientId: string, fileData: { file_url: string, file_type: any }) {
+  async addFile(orderId: string, clientId: string, fileData: { file_url: string; file_type: FileType }) {
     // Verificar que el pedido existe y pertenece al cliente
     const order = await prisma.order.findFirst({
       where: {

@@ -33,7 +33,7 @@ export class ServicesController {
 
   async update(req: Request, res: Response): Promise<any> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const { name, pricing_model, is_active } = req.body;
 
       const service = await servicesService.update(id, { name, pricing_model, is_active });

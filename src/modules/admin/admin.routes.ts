@@ -5,67 +5,26 @@ import { requireRole } from '../../middlewares/role.middleware';
 
 const router = Router();
 
-router.get(
-  '/payments/pending',
-  authMiddleware,
-  requireRole(['ADMIN']),
-  adminController.getPendingPayments
-);
+router.use(authMiddleware, requireRole(['ADMIN']));
 
-router.patch(
-  '/payments/:id/approve',
-  authMiddleware,
-  requireRole(['ADMIN']),
-  adminController.approvePayment
-);
+router.get('/payments/pending', adminController.getPendingPayments);
+router.patch('/payments/:id/approve', adminController.approvePayment);
+router.patch('/payments/:id/reject', adminController.rejectPayment);
+router.patch('/orders/:id/assign', adminController.assignOperator);
 
-router.patch(
-  '/payments/:id/reject',
-  authMiddleware,
-  requireRole(['ADMIN']),
-  adminController.rejectPayment
-);
+router.get('/stats/sales', adminController.getSalesStats);
+router.get('/stats/services', adminController.getServicesStats);
+router.get('/stats/clients', adminController.getTopClients);
+router.get('/stats/operators', adminController.getOperatorsStats);
+router.get('/stats/orders-by-status', adminController.getOrdersByStatusStats);
 
-router.patch(
-  '/orders/:id/assign',
-  authMiddleware,
-  requireRole(['ADMIN']),
-  adminController.assignOperator
-);
+router.get('/orders', adminController.getAdminOrders);
+router.get('/reports/orders/export', adminController.exportOrdersReport);
+router.get('/clients', adminController.getClients);
+router.patch('/clients/:id/frequent', adminController.updateClientFrequentStatus);
 
-router.get(
-  '/stats/sales',
-  authMiddleware,
-  requireRole(['ADMIN']),
-  adminController.getSalesStats
-);
-
-router.get(
-  '/stats/services',
-  authMiddleware,
-  requireRole(['ADMIN']),
-  adminController.getServicesStats
-);
-
-router.get(
-  '/stats/clients',
-  authMiddleware,
-  requireRole(['ADMIN']),
-  adminController.getTopClients
-);
-
-router.get(
-  '/stats/operators',
-  authMiddleware,
-  requireRole(['ADMIN']),
-  adminController.getOperatorsStats
-);
-
-router.get(
-  '/stats/orders-by-status',
-  authMiddleware,
-  requireRole(['ADMIN']),
-  adminController.getOrdersByStatusStats
-);
+router.post('/operators', adminController.createOperator);
+router.patch('/operators/:id', adminController.updateOperator);
+router.delete('/operators/:id', adminController.deleteOperator);
 
 export default router;

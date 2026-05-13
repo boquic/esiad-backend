@@ -522,6 +522,46 @@ export const openApiSpec = {
         }
       }
     },
+    '/api/operator/orders/{id}/files/{fileId}/download': {
+      get: {
+        tags: ['Operator'],
+        summary: 'Descarga un archivo (plano) de un pedido asignado (solo Operario)',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: 'id',
+            in: 'path',
+            required: true,
+            schema: { type: 'string', format: 'uuid' },
+            description: 'ID del pedido'
+          },
+          {
+            name: 'fileId',
+            in: 'path',
+            required: true,
+            schema: { type: 'string', format: 'uuid' },
+            description: 'ID del archivo a descargar'
+          }
+        ],
+        responses: {
+          200: {
+            description: 'Archivo descargado correctamente',
+            content: {
+              'application/octet-stream': {}
+            }
+          },
+          401: {
+            description: 'No autorizado'
+          },
+          403: {
+            description: 'Prohibido - Pedido no asignado al operario'
+          },
+          404: {
+            description: 'Pedido o archivo no encontrado'
+          }
+        }
+      }
+    },
     '/api/payments': {
       post: {
         tags: ['Payments'],
@@ -985,6 +1025,326 @@ export const openApiSpec = {
         }
       }
     },
+    '/api/admin/orders': {
+      get: {
+        tags: ['Admin'],
+        summary: 'Lista todos los pedidos (solo Admin)',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: 'status',
+            in: 'query',
+            required: false,
+            schema: { type: 'string' },
+            description: 'Filtrar por estado del pedido'
+          },
+          {
+            name: 'page',
+            in: 'query',
+            required: false,
+            schema: { type: 'number' },
+            description: 'Número de página'
+          }
+        ],
+        responses: {
+          200: {
+            description: 'Lista de pedidos obtenida exitosamente',
+            content: {
+              'application/json': {
+                schema: {
+                  $ref: '#/components/schemas/OrdersListResponse'
+                }
+              }
+            }
+          },
+          401: {
+            description: 'No autorizado'
+          },
+          403: {
+            description: 'Prohibido - No es Admin'
+          }
+        }
+      }
+    },
+    '/api/admin/reports/orders/export': {
+      get: {
+        tags: ['Admin'],
+        summary: 'Exporta un reporte de pedidos en formato CSV (solo Admin)',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: 'startDate',
+            in: 'query',
+            required: false,
+            schema: { type: 'string', format: 'date' },
+            description: 'Fecha de inicio (YYYY-MM-DD)'
+          },
+          {
+            name: 'endDate',
+            in: 'query',
+            required: false,
+            schema: { type: 'string', format: 'date' },
+            description: 'Fecha de fin (YYYY-MM-DD)'
+          }
+        ],
+        responses: {
+          200: {
+            description: 'Reporte exportado exitosamente',
+            content: {
+              'text/csv': {}
+            }
+          },
+          401: {
+            description: 'No autorizado'
+          },
+          403: {
+            description: 'Prohibido - No es Admin'
+          }
+        }
+      }
+    },
+    '/api/admin/clients': {
+      get: {
+        tags: ['Admin'],
+        summary: 'Lista todos los clientes (solo Admin)',
+        security: [{ bearerAuth: [] }],
+        responses: {
+          200: {
+            description: 'Lista de clientes obtenida exitosamente',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    data: {
+                      type: 'array',
+                      items: { $ref: '#/components/schemas/User' }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          401: {
+            description: 'No autorizado'
+          },
+          403: {
+            description: 'Prohibido - No es Admin'
+          }
+        }
+      }
+    },
+    '/api/admin/clients/{id}/frequent': {
+      patch: {
+        tags: ['Admin'],
+        summary: 'Actualiza el estado de cliente frecuente (solo Admin)',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: 'id',
+            in: 'path',
+            required: true,
+            schema: { type: 'string', format: 'uuid' },
+            description: 'ID del cliente'
+          }
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['is_frequent'],
+                properties: {
+                  is_frequent: {
+                    type: 'boolean',
+                    example: true,
+                    description: 'Estado de cliente frecuente'
+                  }
+                }
+              }
+            }
+          }
+        },
+        responses: {
+          200: {
+            description: 'Estado actualizado exitosamente',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    data: { $ref: '#/components/schemas/User' }
+                  }
+                }
+              }
+            }
+          },
+          400: {
+            description: 'Campos faltantes'
+          },
+          401: {
+            description: 'No autorizado'
+          },
+          403: {
+            description: 'Prohibido - No es Admin'
+          },
+          404: {
+            description: 'Cliente no encontrado'
+          }
+        }
+      }
+    },
+    '/api/admin/operators': {
+      post: {
+        tags: ['Admin'],
+        summary: 'Crea un nuevo operario (solo Admin)',
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['dni', 'first_name', 'last_name', 'phone', 'password'],
+                properties: {
+                  dni: { type: 'string', example: '87654321' },
+                  first_name: { type: 'string', example: 'Pedro' },
+                  last_name: { type: 'string', example: 'Gómez' },
+                  phone: { type: 'string', example: '987654321' },
+                  password: { type: 'string', example: 'MiClave123!' },
+                  specialties: {
+                    type: 'array',
+                    items: { type: 'string', format: 'uuid' },
+                    description: 'IDs de servicios en los que se especializa el operario'
+                  }
+                }
+              }
+            }
+          }
+        },
+        responses: {
+          201: {
+            description: 'Operario creado exitosamente',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    data: { $ref: '#/components/schemas/User' }
+                  }
+                }
+              }
+            }
+          },
+          400: {
+            description: 'Campos faltantes'
+          },
+          401: {
+            description: 'No autorizado'
+          },
+          403: {
+            description: 'Prohibido - No es Admin'
+          },
+          409: {
+            description: 'DNI o celular duplicado'
+          }
+        }
+      }
+    },
+    '/api/admin/operators/{id}': {
+      patch: {
+        tags: ['Admin'],
+        summary: 'Actualiza un operario (solo Admin)',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: 'id',
+            in: 'path',
+            required: true,
+            schema: { type: 'string', format: 'uuid' },
+            description: 'ID del operario'
+          }
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  first_name: { type: 'string', example: 'Pedro' },
+                  last_name: { type: 'string', example: 'Gómez' },
+                  phone: { type: 'string', example: '987654321' },
+                  specialties: {
+                    type: 'array',
+                    items: { type: 'string', format: 'uuid' },
+                    description: 'IDs de servicios en los que se especializa'
+                  }
+                }
+              }
+            }
+          }
+        },
+        responses: {
+          200: {
+            description: 'Operario actualizado exitosamente',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    data: { $ref: '#/components/schemas/User' }
+                  }
+                }
+              }
+            }
+          },
+          400: {
+            description: 'Datos inválidos'
+          },
+          401: {
+            description: 'No autorizado'
+          },
+          403: {
+            description: 'Prohibido - No es Admin'
+          },
+          404: {
+            description: 'Operario no encontrado'
+          }
+        }
+      }
+    },
+    '/api/admin/operators/{id}': {
+      delete: {
+        tags: ['Admin'],
+        summary: 'Elimina un operario (solo Admin)',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: 'id',
+            in: 'path',
+            required: true,
+            schema: { type: 'string', format: 'uuid' },
+            description: 'ID del operario a eliminar'
+          }
+        ],
+        responses: {
+          200: {
+            description: 'Operario eliminado exitosamente'
+          },
+          401: {
+            description: 'No autorizado'
+          },
+          403: {
+            description: 'Prohibido - No es Admin'
+          },
+          404: {
+            description: 'Operario no encontrado'
+          }
+        }
+      }
+    },
     '/api/auth/register': {
       post: {
         tags: ['Auth'],
@@ -1242,6 +1602,64 @@ export const openApiSpec = {
           },
           409: {
             description: 'Nombre duplicado',
+            content: {
+              'application/json': {
+                schema: {
+                  $ref: '#/components/schemas/ErrorResponse'
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    '/api/services/{id}/toggle': {
+      patch: {
+        tags: ['Services'],
+        summary: 'Activa/Desactiva un servicio (solo Admin)',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: 'id',
+            in: 'path',
+            required: true,
+            schema: { type: 'string', format: 'uuid' },
+            description: 'ID del servicio'
+          }
+        ],
+        responses: {
+          200: {
+            description: 'Estado cambiado',
+            content: {
+              'application/json': {
+                schema: {
+                  $ref: '#/components/schemas/CreateServiceResponse'
+                }
+              }
+            }
+          },
+          401: {
+            description: 'No autorizado',
+            content: {
+              'application/json': {
+                schema: {
+                  $ref: '#/components/schemas/ErrorResponse'
+                }
+              }
+            }
+          },
+          403: {
+            description: 'Prohibido - No es Admin',
+            content: {
+              'application/json': {
+                schema: {
+                  $ref: '#/components/schemas/ErrorResponse'
+                }
+              }
+            }
+          },
+          404: {
+            description: 'Servicio no encontrado',
             content: {
               'application/json': {
                 schema: {

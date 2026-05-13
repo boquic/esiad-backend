@@ -1,5 +1,23 @@
 import { prisma } from '../../config/database';
-import { FileType, Prisma } from '@prisma/client';
+import { FileType, Prisma, PricingModel } from '@prisma/client';
+
+function calculateEstimatedDeliveryAt(pricingModel: PricingModel): Date {
+  const estimatedDeliveryAt = new Date();
+
+  switch (pricingModel) {
+    case 'PER_UNIT':
+    case 'PER_M2':
+      estimatedDeliveryAt.setDate(estimatedDeliveryAt.getDate() + 2);
+      break;
+    case 'PER_VOLUME':
+    case 'FIXED':
+    default:
+      estimatedDeliveryAt.setDate(estimatedDeliveryAt.getDate() + 3);
+      break;
+  }
+
+  return estimatedDeliveryAt;
+}
 
 export class OrdersService {
   async create(clientId: string, data: {
@@ -79,6 +97,7 @@ export class OrdersService {
     // 6. Fijar expiración del presupuesto (ahora + 24h)
     const budget_expires_at = new Date();
     budget_expires_at.setHours(budget_expires_at.getHours() + 24);
+    const estimated_delivery_at = calculateEstimatedDeliveryAt(serviceType.pricing_model);
 
     // 7. Crear el pedido
     return await prisma.order.create({
@@ -91,6 +110,7 @@ export class OrdersService {
         estimated_price: estimatedPrice,
         advance_amount,
         budget_expires_at,
+        estimated_delivery_at,
         notes,
       },
       include: {
@@ -101,7 +121,7 @@ export class OrdersService {
   }
 
   async findByClientId(clientId: string) {
-    return await prisma.order.findMany({
+    const orders = await prisma.order.findMany({
       where: {
         client_id: clientId,
       },
@@ -113,10 +133,12 @@ export class OrdersService {
         created_at: 'desc',
       },
     });
+
+    return orders.map(({ operator_notes, ...order }) => order);
   }
 
   async findById(id: string, clientId: string) {
-    return await prisma.order.findFirst({
+    const order = await prisma.order.findFirst({
       where: {
         id,
         client_id: clientId,
@@ -128,6 +150,13 @@ export class OrdersService {
         payments: true,
       },
     });
+
+    if (!order) {
+      return null;
+    }
+
+    const { operator_notes, ...safeOrder } = order;
+    return safeOrder;
   }
 
   async addFile(orderId: string, clientId: string, fileData: { file_url: string; file_type: FileType }) {

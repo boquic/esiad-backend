@@ -153,6 +153,8 @@ model Order {
   advance_amount    Decimal?         @db.Decimal(10, 2)
   budget_expires_at DateTime
   notes             String?
+  operator_notes    String?
+  estimated_delivery_at DateTime?
   created_at        DateTime         @default(now())
   updated_at        DateTime         @updatedAt
 

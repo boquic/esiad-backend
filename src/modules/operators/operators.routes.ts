@@ -19,6 +19,13 @@ router.get(
   operatorsController.getOrderById
 );
 
+router.get(
+  '/orders/:id/files/:fileId/download',
+  authMiddleware,
+  requireRole(['OPERATOR']),
+  operatorsController.downloadOrderFile
+);
+
 router.patch(
   '/orders/:id/status',
   authMiddleware,

@@ -1,11 +1,26 @@
-import { Router } from 'express';
+import { NextFunction, Request, Response, Router } from 'express';
 import { OrdersController } from './orders.controller';
 import { authMiddleware } from '../../middlewares/auth.middleware';
 import { requireRole } from '../../middlewares/role.middleware';
-import { uploadMiddleware } from '../../middlewares/upload.middleware';
+import { buildUploadErrorResponse, uploadMiddleware } from '../../middlewares/upload.middleware';
 
 const router = Router();
 const ordersController = new OrdersController();
+
+const handleOrderFileUpload = (req: Request, res: Response, next: NextFunction): void => {
+  const upload = uploadMiddleware.single('file');
+
+  upload(req, res, (error: unknown) => {
+    const uploadError = buildUploadErrorResponse(error);
+
+    if (uploadError) {
+      res.status(uploadError.status).json({ error: true, message: uploadError.message });
+      return;
+    }
+
+    next();
+  });
+};
 
 // Solo clientes pueden crear pedidos
 router.post('/', authMiddleware, requireRole(['CLIENT']), ordersController.create.bind(ordersController));
@@ -20,7 +35,7 @@ router.get('/:id', authMiddleware, requireRole(['CLIENT']), ordersController.fin
 router.post('/:id/files', 
   authMiddleware, 
   requireRole(['CLIENT']), 
-  uploadMiddleware.single('file'), 
+  handleOrderFileUpload,
   ordersController.uploadFile.bind(ordersController)
 );
 

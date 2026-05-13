@@ -13,6 +13,7 @@ import { ENV } from './config/env';
 import { prisma, connectDatabase } from './config/database';
 import swaggerUi from 'swagger-ui-express';
 import { openApiSpec } from './docs/openapi';
+import { startExpireBudgetsJob } from './jobs/expire-budgets.job';
 
 const app = express();
 
@@ -47,6 +48,7 @@ app.get('/health', async (req: Request, res: Response) => {
 
 const startServer = async () => {
   await connectDatabase();
+  startExpireBudgetsJob();
   app.listen(ENV.PORT, () => {
     console.log(`Server running on port ${ENV.PORT}`);
   });

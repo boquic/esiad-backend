@@ -121,6 +121,19 @@ export class OrdersService {
   }
 
   async findByClientId(clientId: string) {
+    await prisma.order.updateMany({
+      where: {
+        client_id: clientId,
+        status: 'BUDGETED',
+        budget_expires_at: {
+          lt: new Date(),
+        },
+      },
+      data: {
+        status: 'EXPIRED',
+      },
+    });
+
     const orders = await prisma.order.findMany({
       where: {
         client_id: clientId,
@@ -197,12 +210,21 @@ export class OrdersService {
     }
 
     if (order.budget_expires_at < new Date()) {
+      await prisma.order.update({
+        where: { id: orderId },
+        data: { status: 'EXPIRED' }
+      });
+
       throw new Error('El presupuesto ha expirado');
     }
 
+    const nextStatus = order.payment_condition === 'CASH_ON_DELIVERY'
+      ? 'IN_PROGRESS'
+      : 'PENDING_PAYMENT';
+
     return await prisma.order.update({
       where: { id: orderId },
-      data: { status: 'PENDING_PAYMENT' }
+      data: { status: nextStatus }
     });
   }
 }

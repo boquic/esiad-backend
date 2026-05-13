@@ -77,4 +77,43 @@ export class OperatorsService {
     const { estimated_price, advance_amount, payments, ...safeOrder } = order as any;
     return safeOrder;
   }
+
+  async updateOrderStatus(userId: string, orderId: string, status: string) {
+    const operator = await prisma.operator.findUnique({
+      where: { user_id: userId }
+    });
+
+    if (!operator) {
+      throw new Error('Operario no encontrado');
+    }
+
+    const order = await prisma.order.findFirst({
+      where: { id: orderId }
+    });
+
+    if (!order) {
+      throw new Error('Pedido no encontrado');
+    }
+
+    if (order.operator_id !== operator.id) {
+      throw new Error('No puedes cambiar el estado de un pedido que no te fue asignado');
+    }
+
+    // Un operario no puede cambiar estado hacia atrás
+    if (order.status === 'READY' && status === 'IN_PROGRESS') {
+      throw new Error('No se puede cambiar el estado hacia atrás');
+    }
+
+    if (status !== 'READY') {
+      throw new Error('Estado inválido. Solo puedes marcar el pedido como READY');
+    }
+
+    const updatedOrder = await prisma.order.update({
+      where: { id: orderId },
+      data: { status: 'READY' }
+    });
+
+    const { estimated_price, advance_amount, payments, ...safeOrder } = updatedOrder as any;
+    return safeOrder;
+  }
 }

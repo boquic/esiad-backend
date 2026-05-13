@@ -399,6 +399,64 @@ export const openApiSpec = {
         }
       }
     },
+    '/api/operator/orders/{id}/status': {
+      patch: {
+        tags: ['Operator'],
+        summary: 'Actualizar estado del pedido (solo Operario)',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: 'id',
+            in: 'path',
+            required: true,
+            schema: { type: 'string', format: 'uuid' },
+            description: 'ID del pedido'
+          }
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['status'],
+                properties: {
+                  status: {
+                    type: 'string',
+                    enum: ['READY'],
+                    example: 'READY'
+                  }
+                }
+              }
+            }
+          }
+        },
+        responses: {
+          200: {
+            description: 'Estado del pedido actualizado',
+            content: {
+              'application/json': {
+                schema: {
+                  $ref: '#/components/schemas/OrderResponse'
+                }
+              }
+            }
+          },
+          400: {
+            description: 'Estado hacia atrás o inválido'
+          },
+          401: {
+            description: 'No autorizado'
+          },
+          403: {
+            description: 'Prohibido - Pedido no asignado al operario'
+          },
+          404: {
+            description: 'Pedido no encontrado'
+          }
+        }
+      }
+    },
     '/api/auth/register': {
       post: {
         tags: ['Auth'],

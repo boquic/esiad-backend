@@ -19,4 +19,11 @@ router.get(
   operatorsController.getOrderById
 );
 
+router.patch(
+  '/orders/:id/status',
+  authMiddleware,
+  requireRole(['OPERATOR']),
+  operatorsController.updateOrderStatus
+);
+
 export default router;

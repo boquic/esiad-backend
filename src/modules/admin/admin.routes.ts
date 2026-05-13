@@ -19,4 +19,11 @@ router.patch(
   adminController.approvePayment
 );
 
+router.patch(
+  '/payments/:id/reject',
+  authMiddleware,
+  requireRole(['ADMIN']),
+  adminController.rejectPayment
+);
+
 export default router;

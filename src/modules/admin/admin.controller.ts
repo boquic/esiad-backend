@@ -28,6 +28,25 @@ export class AdminController {
       next(error);
     }
   }
+
+  async rejectPayment(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { id } = req.params;
+      const { admin_comment } = req.body;
+      const payment = await adminService.rejectPayment(id as string, admin_comment);
+      res.status(200).json({ data: payment });
+    } catch (error: any) {
+      if (error.message === 'Pago no encontrado') {
+        res.status(404).json({ error: true, message: error.message });
+        return;
+      }
+      if (error.message === 'El pago no está pendiente de revisión' || error.message === 'El comentario de rechazo es obligatorio') {
+        res.status(400).json({ error: true, message: error.message });
+        return;
+      }
+      next(error);
+    }
+  }
 }
 
 export const adminController = new AdminController();

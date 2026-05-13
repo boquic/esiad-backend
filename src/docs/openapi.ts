@@ -648,6 +648,66 @@ export const openApiSpec = {
         }
       }
     },
+    '/api/admin/payments/{id}/reject': {
+      patch: {
+        tags: ['Admin'],
+        summary: 'Rechaza una captura de pago con un comentario obligatorio (solo Admin)',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: 'id',
+            in: 'path',
+            required: true,
+            schema: { type: 'string', format: 'uuid' },
+            description: 'ID del pago a rechazar'
+          }
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['admin_comment'],
+                properties: {
+                  admin_comment: {
+                    type: 'string',
+                    example: 'La imagen está borrosa, por favor sube una más clara.'
+                  }
+                }
+              }
+            }
+          }
+        },
+        responses: {
+          200: {
+            description: 'Pago rechazado',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    data: { $ref: '#/components/schemas/Payment' }
+                  }
+                }
+              }
+            }
+          },
+          400: {
+            description: 'El comentario es obligatorio o el pago no está pendiente'
+          },
+          401: {
+            description: 'No autorizado'
+          },
+          403: {
+            description: 'Prohibido - No es Admin'
+          },
+          404: {
+            description: 'Pago no encontrado'
+          }
+        }
+      }
+    },
     '/api/auth/register': {
       post: {
         tags: ['Auth'],

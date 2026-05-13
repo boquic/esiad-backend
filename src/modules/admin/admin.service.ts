@@ -58,6 +58,35 @@ export class AdminService {
 
     return updatedPayment;
   }
+
+  async rejectPayment(paymentId: string, adminComment: string) {
+    if (!adminComment || adminComment.trim() === '') {
+      throw new Error('El comentario de rechazo es obligatorio');
+    }
+
+    const payment = await prisma.payment.findUnique({
+      where: { id: paymentId }
+    });
+
+    if (!payment) {
+      throw new Error('Pago no encontrado');
+    }
+
+    if (payment.status !== 'PENDING') {
+      throw new Error('El pago no está pendiente de revisión');
+    }
+
+    const updatedPayment = await prisma.payment.update({
+      where: { id: paymentId },
+      data: {
+        status: 'REJECTED',
+        admin_comment: adminComment,
+        reviewed_at: new Date()
+      }
+    });
+
+    return updatedPayment;
+  }
 }
 
 export const adminService = new AdminService();

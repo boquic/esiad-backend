@@ -828,6 +828,44 @@ export const openApiSpec = {
         }
       }
     },
+    '/api/admin/stats/services': {
+      get: {
+        tags: ['Admin'],
+        summary: 'Obtiene el ranking de los servicios más solicitados (solo Admin)',
+        security: [{ bearerAuth: [] }],
+        responses: {
+          200: {
+            description: 'Ranking obtenido exitosamente',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    data: {
+                      type: 'array',
+                      items: {
+                        type: 'object',
+                        properties: {
+                          service_id: { type: 'string', format: 'uuid' },
+                          service_name: { type: 'string', example: 'Corte Láser' },
+                          count: { type: 'number', example: 15 }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          401: {
+            description: 'No autorizado'
+          },
+          403: {
+            description: 'Prohibido - No es Admin'
+          }
+        }
+      }
+    },
     '/api/auth/register': {
       post: {
         tags: ['Auth'],

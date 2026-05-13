@@ -26,4 +26,18 @@ router.patch(
   adminController.rejectPayment
 );
 
+router.patch(
+  '/orders/:id/assign',
+  authMiddleware,
+  requireRole(['ADMIN']),
+  adminController.assignOperator
+);
+
+router.get(
+  '/stats/sales',
+  authMiddleware,
+  requireRole(['ADMIN']),
+  adminController.getSalesStats
+);
+
 export default router;

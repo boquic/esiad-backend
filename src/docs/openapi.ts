@@ -708,6 +708,126 @@ export const openApiSpec = {
         }
       }
     },
+    '/api/admin/orders/{id}/assign': {
+      patch: {
+        tags: ['Admin'],
+        summary: 'Asigna un operario a un pedido validando especialidades (solo Admin)',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: 'id',
+            in: 'path',
+            required: true,
+            schema: { type: 'string', format: 'uuid' },
+            description: 'ID del pedido a asignar'
+          }
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['operator_id'],
+                properties: {
+                  operator_id: {
+                    type: 'string',
+                    format: 'uuid',
+                    description: 'ID del operario a asignar'
+                  }
+                }
+              }
+            }
+          }
+        },
+        responses: {
+          200: {
+            description: 'Operario asignado exitosamente',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    data: { $ref: '#/components/schemas/Order' }
+                  }
+                }
+              }
+            }
+          },
+          400: {
+            description: 'Especialidad no coincide o faltan datos'
+          },
+          401: {
+            description: 'No autorizado'
+          },
+          403: {
+            description: 'Prohibido - No es Admin'
+          },
+          404: {
+            description: 'Pedido u operario no encontrado'
+          }
+        }
+      }
+    },
+    '/api/admin/stats/sales': {
+      get: {
+        tags: ['Admin'],
+        summary: 'Obtiene las ventas totales por período, filtradas opcionalmente por fecha (solo Admin)',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: 'startDate',
+            in: 'query',
+            required: false,
+            schema: { type: 'string', format: 'date' },
+            description: 'Fecha de inicio (YYYY-MM-DD)'
+          },
+          {
+            name: 'endDate',
+            in: 'query',
+            required: false,
+            schema: { type: 'string', format: 'date' },
+            description: 'Fecha de fin (YYYY-MM-DD)'
+          }
+        ],
+        responses: {
+          200: {
+            description: 'Estadísticas obtenidas exitosamente',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    data: {
+                      type: 'object',
+                      properties: {
+                        totalSales: { type: 'number', example: 1250.50 },
+                        dailySales: {
+                          type: 'array',
+                          items: {
+                            type: 'object',
+                            properties: {
+                              date: { type: 'string', example: '2026-05-13' },
+                              total: { type: 'number', example: 350.00 }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          401: {
+            description: 'No autorizado'
+          },
+          403: {
+            description: 'Prohibido - No es Admin'
+          }
+        }
+      }
+    },
     '/api/auth/register': {
       post: {
         tags: ['Auth'],

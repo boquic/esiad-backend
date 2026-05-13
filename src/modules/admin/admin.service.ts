@@ -87,6 +87,100 @@ export class AdminService {
 
     return updatedPayment;
   }
+
+  async assignOperator(orderId: string, operatorId: string) {
+    if (!operatorId) {
+      throw new Error('El ID del operario es requerido');
+    }
+
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: { service_type: true }
+    });
+
+    if (!order) {
+      throw new Error('Pedido no encontrado');
+    }
+
+    const operator = await prisma.operator.findUnique({
+      where: { id: operatorId },
+      include: { specialties: true }
+    });
+
+    if (!operator) {
+      throw new Error('Operario no encontrado');
+    }
+
+    const serviceName = order.service_type.name.toLowerCase();
+    const hasMatchingSpecialty = operator.specialties.some(sp => {
+      if (serviceName.includes('láser') || serviceName.includes('laser')) return sp.specialty === 'LASER';
+      if (serviceName.includes('ploteo')) return sp.specialty === 'PLOTTING';
+      if (serviceName.includes('3d')) return sp.specialty === 'PRINTING_3D';
+      if (serviceName.includes('maqueta')) return sp.specialty === 'MODEL';
+      return false;
+    });
+
+    if (!hasMatchingSpecialty) {
+      throw new Error('La especialidad del operario no coincide con el servicio del pedido');
+    }
+
+    const updatedOrder = await prisma.order.update({
+      where: { id: orderId },
+      data: { operator_id: operatorId }
+    });
+
+    return updatedOrder;
+  }
+
+  async getSalesStats(startDate?: string, endDate?: string) {
+    const whereClause: any = {
+      status: 'APPROVED'
+    };
+
+    if (startDate || endDate) {
+      whereClause.reviewed_at = {};
+      if (startDate) {
+        whereClause.reviewed_at.gte = new Date(startDate);
+      }
+      if (endDate) {
+        // Al final del día para endDate si no trae hora
+        const end = new Date(endDate);
+        if (endDate.length === 10) {
+          end.setHours(23, 59, 59, 999);
+        }
+        whereClause.reviewed_at.lte = end;
+      }
+    }
+
+    const payments = await prisma.payment.findMany({
+      where: whereClause,
+      select: {
+        amount: true,
+        reviewed_at: true
+      },
+      orderBy: { reviewed_at: 'asc' }
+    });
+
+    let totalSales = 0;
+    const salesByDate: Record<string, number> = {};
+
+    payments.forEach(p => {
+      const amount = Number(p.amount);
+      totalSales += amount;
+      
+      if (p.reviewed_at) {
+        const dateStr = p.reviewed_at.toISOString().split('T')[0];
+        salesByDate[dateStr] = (salesByDate[dateStr] || 0) + amount;
+      }
+    });
+
+    const dailySales = Object.keys(salesByDate).map(date => ({
+      date,
+      total: salesByDate[date]
+    }));
+
+    return { totalSales, dailySales };
+  }
 }
 
 export const adminService = new AdminService();

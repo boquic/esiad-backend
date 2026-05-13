@@ -36,3 +36,22 @@ export const uploadMiddleware = multer({
     fileSize: ENV.UPLOAD_MAX_SIZE_MB * 1024 * 1024 // MB a Bytes
   }
 });
+
+const imageFilter = (req: any, file: any, cb: any) => {
+  const allowedExtensions = ['.jpg', '.jpeg', '.png'];
+  const ext = path.extname(file.originalname).toLowerCase();
+  
+  if (allowedExtensions.includes(ext)) {
+    cb(null, true);
+  } else {
+    cb(new Error('Formato de archivo no permitido. Solo se aceptan imágenes (.jpg, .jpeg, .png)'), false);
+  }
+};
+
+export const uploadImageMiddleware = multer({
+  storage,
+  fileFilter: imageFilter,
+  limits: {
+    fileSize: ENV.UPLOAD_MAX_SIZE_MB * 1024 * 1024 // MB a Bytes
+  }
+});

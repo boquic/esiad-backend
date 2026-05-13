@@ -35,6 +35,10 @@ export const openApiSpec = {
     {
       name: 'Operator',
       description: 'Gestión de cola de trabajo (operarios)'
+    },
+    {
+      name: 'Payments',
+      description: 'Gestión de pagos y validación'
     }
   ],
   components: {
@@ -510,6 +514,58 @@ export const openApiSpec = {
           },
           404: {
             description: 'Pedido no encontrado'
+          }
+        }
+      }
+    },
+    '/api/payments': {
+      post: {
+        tags: ['Payments'],
+        summary: 'Sube una captura de pago Yape (solo Cliente)',
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            'multipart/form-data': {
+              schema: {
+                type: 'object',
+                properties: {
+                  order_id: { type: 'string', format: 'uuid', description: 'ID del pedido al que corresponde el pago' },
+                  capture: { type: 'string', format: 'binary', description: 'Imagen de la captura de pago (.jpg, .jpeg, .png)' }
+                },
+                required: ['order_id', 'capture']
+              }
+            }
+          }
+        },
+        responses: {
+          201: {
+            description: 'Pago registrado exitosamente',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    data: { $ref: '#/components/schemas/Payment' }
+                  }
+                }
+              }
+            }
+          },
+          400: {
+            description: 'Archivo inválido o campos faltantes'
+          },
+          401: {
+            description: 'No autorizado'
+          },
+          403: {
+            description: 'Prohibido - No es Cliente'
+          },
+          404: {
+            description: 'Pedido no encontrado o no pertenece al cliente'
+          },
+          409: {
+            description: 'Ya existe una captura pendiente para el pedido'
           }
         }
       }

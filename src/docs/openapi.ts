@@ -31,6 +31,10 @@ export const openApiSpec = {
     {
       name: 'Orders',
       description: 'Gestión de pedidos (clientes)'
+    },
+    {
+      name: 'Operator',
+      description: 'Gestión de cola de trabajo (operarios)'
     }
   ],
   components: {
@@ -308,6 +312,89 @@ export const openApiSpec = {
           },
           500: {
             description: 'Base de datos desconectada'
+          }
+        }
+      }
+    },
+    '/api/operator/orders': {
+      get: {
+        tags: ['Operator'],
+        summary: 'Lista pedidos asignados al operario (solo Operario)',
+        security: [{ bearerAuth: [] }],
+        responses: {
+          200: {
+            description: 'Lista de pedidos asignados',
+            content: {
+              'application/json': {
+                schema: {
+                  $ref: '#/components/schemas/OrdersListResponse'
+                }
+              }
+            }
+          },
+          401: {
+            description: 'No autorizado',
+            content: {
+              'application/json': {
+                schema: {
+                  $ref: '#/components/schemas/ErrorResponse'
+                }
+              }
+            }
+          },
+          403: {
+            description: 'Prohibido - No es Operario',
+            content: {
+              'application/json': {
+                schema: {
+                  $ref: '#/components/schemas/ErrorResponse'
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    '/api/operator/orders/{id}': {
+      get: {
+        tags: ['Operator'],
+        summary: 'Detalle de un pedido asignado al operario con planos',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: 'id',
+            in: 'path',
+            required: true,
+            schema: { type: 'string', format: 'uuid' },
+            description: 'ID del pedido'
+          }
+        ],
+        responses: {
+          200: {
+            description: 'Detalle del pedido',
+            content: {
+              'application/json': {
+                schema: {
+                  $ref: '#/components/schemas/OrderResponse'
+                }
+              }
+            }
+          },
+          401: {
+            description: 'No autorizado'
+          },
+          403: {
+            description: 'Prohibido - No es Operario'
+          },
+          404: {
+            description: 'Pedido no encontrado o no asignado',
+            content: {
+              'application/json': {
+                schema: {
+                  $ref: '#/components/schemas/ErrorResponse'
+                }
+              }
+            }
           }
         }
       }

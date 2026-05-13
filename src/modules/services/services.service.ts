@@ -1,21 +1,36 @@
+import { PricingModel, Prisma } from '@prisma/client';
 import { prisma } from '../../config/database';
 
+type ServiceInput = {
+  name: string;
+  pricing_model: PricingModel;
+};
+
+type ServiceUpdateInput = {
+  name?: string;
+  pricing_model?: PricingModel;
+  is_active?: boolean;
+};
+
 export class ServicesService {
-  async findAllActive() {
+  async findAllActive(includeInactive = false) {
+    const whereClause: Prisma.ServiceTypeWhereInput = includeInactive
+      ? {}
+      : {
+          is_active: true,
+        };
+
     return await prisma.serviceType.findMany({
-      where: {
-        is_active: true,
-      },
+      where: whereClause,
       orderBy: {
         name: 'asc',
       },
     });
   }
 
-  async create(data: { name: string; pricing_model: any }) {
+  async create(data: ServiceInput) {
     const { name, pricing_model } = data;
 
-    // Verificar si el nombre ya existe
     const existingService = await prisma.serviceType.findUnique({ where: { name } });
     if (existingService) {
       throw new Error('Servicio ya registrado');
@@ -29,8 +44,7 @@ export class ServicesService {
     });
   }
 
-  async update(id: string, data: { name?: string; pricing_model?: any; is_active?: boolean }) {
-    // Si se intenta actualizar el nombre, verificamos que no esté en uso por otro servicio
+  async update(id: string, data: ServiceUpdateInput) {
     if (data.name) {
       const existingService = await prisma.serviceType.findFirst({
         where: {
@@ -47,6 +61,23 @@ export class ServicesService {
     return await prisma.serviceType.update({
       where: { id },
       data,
+    });
+  }
+
+  async toggle(id: string) {
+    const service = await prisma.serviceType.findUnique({
+      where: { id },
+    });
+
+    if (!service) {
+      throw new Error('Servicio no encontrado');
+    }
+
+    return await prisma.serviceType.update({
+      where: { id },
+      data: {
+        is_active: !service.is_active,
+      },
     });
   }
 }

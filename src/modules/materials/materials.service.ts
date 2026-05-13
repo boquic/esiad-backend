@@ -1,10 +1,27 @@
+import { Prisma } from '@prisma/client';
 import { prisma } from '../../config/database';
 
+type MaterialInput = {
+  service_type_id: string;
+  name: string;
+  unit_price: Prisma.Decimal | number | string;
+  unit: string;
+};
+
+type MaterialUpdateInput = {
+  name?: string;
+  unit_price?: Prisma.Decimal | number | string;
+  unit?: string;
+  is_active?: boolean;
+};
+
 export class MaterialsService {
-  async findAll(serviceTypeId?: string) {
-    const whereClause: any = {
-      is_active: true,
-    };
+  async findAll(serviceTypeId?: string, includeInactive = false) {
+    const whereClause: Prisma.MaterialWhereInput = includeInactive
+      ? {}
+      : {
+          is_active: true,
+        };
 
     if (serviceTypeId) {
       whereClause.service_type_id = serviceTypeId;
@@ -16,8 +33,8 @@ export class MaterialsService {
         service_type: {
           select: {
             name: true,
-          }
-        }
+          },
+        },
       },
       orderBy: {
         name: 'asc',
@@ -25,16 +42,14 @@ export class MaterialsService {
     });
   }
 
-  async create(data: { service_type_id: string; name: string; unit_price: number; unit: string }) {
+  async create(data: MaterialInput) {
     const { service_type_id, name, unit_price, unit } = data;
 
-    // Verificar si el tipo de servicio existe
     const serviceType = await prisma.serviceType.findUnique({ where: { id: service_type_id } });
     if (!serviceType) {
       throw new Error('Tipo de servicio no encontrado');
     }
 
-    // Verificar si el material ya existe para ese servicio
     const existingMaterial = await prisma.material.findUnique({
       where: {
         service_type_id_name: {
@@ -52,14 +67,13 @@ export class MaterialsService {
       data: {
         service_type_id,
         name,
-        unit_price,
+        unit_price: new Prisma.Decimal(unit_price),
         unit,
       },
     });
   }
 
-  async update(id: string, data: { name?: string; unit_price?: number; unit?: string; is_active?: boolean }) {
-    // Si se intenta actualizar el nombre, verificamos que no esté en uso por otro material del mismo servicio
+  async update(id: string, data: MaterialUpdateInput) {
     if (data.name) {
       const currentMaterial = await prisma.material.findUnique({ where: { id } });
       if (!currentMaterial) {
@@ -79,9 +93,16 @@ export class MaterialsService {
       }
     }
 
+    const updateData: Prisma.MaterialUpdateInput = {
+      ...data,
+      ...(data.unit_price !== undefined
+        ? { unit_price: new Prisma.Decimal(data.unit_price) }
+        : {}),
+    };
+
     return await prisma.material.update({
       where: { id },
-      data,
+      data: updateData,
     });
   }
 

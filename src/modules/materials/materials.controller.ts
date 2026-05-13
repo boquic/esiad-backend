@@ -3,12 +3,22 @@ import { MaterialsService } from './materials.service';
 
 const materialsService = new MaterialsService();
 
+function isValidUnitPrice(value: unknown): boolean {
+  if (value === null || value === undefined || value === '') {
+    return false;
+  }
+
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0;
+}
+
 export class MaterialsController {
   async findAll(req: Request, res: Response): Promise<any> {
     try {
       const { serviceTypeId } = req.query;
-      const materials = await materialsService.findAll(serviceTypeId as string);
-      return res.status(200).json({ data: materials });
+      const includeInactive = req.query.includeInactive === 'true';
+      const materials = await materialsService.findAll(serviceTypeId as string, includeInactive);
+      return res.status(200).json({ data: materials, total: materials.length });
     } catch (error: any) {
       return res.status(500).json({ error: true, message: 'Error interno del servidor' });
     }
@@ -20,6 +30,10 @@ export class MaterialsController {
 
       if (!service_type_id || !name || unit_price === undefined || !unit) {
         return res.status(400).json({ error: true, message: 'Todos los campos son requeridos' });
+      }
+
+      if (!isValidUnitPrice(unit_price)) {
+        return res.status(400).json({ error: true, message: 'El precio unitario no es valido' });
       }
 
       const material = await materialsService.create({ service_type_id, name, unit_price, unit });
@@ -39,6 +53,10 @@ export class MaterialsController {
     try {
       const { id } = req.params;
       const { name, unit_price, unit, is_active } = req.body;
+
+      if (unit_price !== undefined && !isValidUnitPrice(unit_price)) {
+        return res.status(400).json({ error: true, message: 'El precio unitario no es valido' });
+      }
 
       const material = await materialsService.update(id as string, { name, unit_price, unit, is_active });
       return res.status(200).json({ data: material });

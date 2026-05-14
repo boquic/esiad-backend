@@ -1,7 +1,6 @@
 import express, { Request, Response } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-import morgan from 'morgan';
 import authRoutes from './modules/auth/auth.routes';
 import servicesRoutes from './modules/services/services.routes';
 import materialsRoutes from './modules/materials/materials.routes';
@@ -14,13 +13,18 @@ import { prisma, connectDatabase } from './config/database';
 import swaggerUi from 'swagger-ui-express';
 import { openApiSpec } from './docs/openapi';
 import { startExpireBudgetsJob } from './jobs/expire-budgets.job';
+import { captureRequestTime, requestLogger, errorLogger } from './middlewares/logging.middleware';
 
 const app = express();
 
 app.use(express.json());
 app.use(cors());
 app.use(helmet());
-app.use(morgan('dev'));
+// Deshabilitar ETag para evitar 304 Not Modified en desarrollo
+app.disable('etag');
+// Middleware de logging mejorado
+app.use(captureRequestTime);
+app.use(requestLogger);
 
 app.use('/api/auth', authRoutes);
 app.use('/api/services', servicesRoutes);
@@ -45,6 +49,9 @@ app.get('/health', async (req: Request, res: Response) => {
     res.status(500).json({ error: true, message: 'Database disconnected' });
   }
 });
+
+// Middleware de error logging (debe estar al final)
+app.use(errorLogger);
 
 const startServer = async () => {
   await connectDatabase();

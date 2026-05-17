@@ -46,6 +46,13 @@ export const openApiSpec = {
     }
   ],
   components: {
+    securitySchemes: {
+      bearerAuth: {
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'JWT'
+      }
+    },
     schemas: {
       RegisterRequest: {
         type: 'object',

@@ -17,15 +17,10 @@ type MaterialUpdateInput = {
 
 export class MaterialsService {
   async findAll(serviceTypeId?: string, includeInactive = false) {
-    const whereClause: Prisma.MaterialWhereInput = includeInactive
-      ? {}
-      : {
-          is_active: true,
-        };
-
-    if (serviceTypeId) {
-      whereClause.service_type_id = serviceTypeId;
-    }
+    const whereClause: Prisma.MaterialWhereInput = {
+      ...(serviceTypeId ? { service_type_id: serviceTypeId } : {}),
+      ...(includeInactive ? {} : { is_active: true }),
+    };
 
     return await prisma.material.findMany({
       where: whereClause,

@@ -83,4 +83,25 @@ export class MaterialsController {
       return res.status(500).json({ error: true, message: 'Error interno del servidor' });
     }
   }
+
+  async remove(req: Request, res: Response): Promise<any> {
+    try {
+      const { id } = req.params;
+      const material = await materialsService.delete(id as string);
+      return res.status(200).json({ data: material });
+    } catch (error: any) {
+      if (error.message === 'Material no encontrado' || error.code === 'P2025') {
+        return res.status(404).json({ error: true, message: 'Material no encontrado' });
+      }
+
+      if (error.code === 'P2003') {
+        return res.status(409).json({
+          error: true,
+          message: 'No se puede eliminar el material porque tiene pedidos asociados'
+        });
+      }
+
+      return res.status(500).json({ error: true, message: 'Error interno del servidor' });
+    }
+  }
 }

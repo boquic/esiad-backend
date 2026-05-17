@@ -1942,6 +1942,72 @@ export const openApiSpec = {
             }
           }
         }
+      },
+      delete: {
+        tags: ['Materials'],
+        summary: 'Elimina un material existente (solo Admin)',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: 'id',
+            in: 'path',
+            required: true,
+            schema: { type: 'string', format: 'uuid' },
+            description: 'ID del material'
+          }
+        ],
+        responses: {
+          200: {
+            description: 'Material eliminado',
+            content: {
+              'application/json': {
+                schema: {
+                  $ref: '#/components/schemas/CreateMaterialResponse'
+                }
+              }
+            }
+          },
+          401: {
+            description: 'No autorizado',
+            content: {
+              'application/json': {
+                schema: {
+                  $ref: '#/components/schemas/ErrorResponse'
+                }
+              }
+            }
+          },
+          403: {
+            description: 'Prohibido - No es Admin',
+            content: {
+              'application/json': {
+                schema: {
+                  $ref: '#/components/schemas/ErrorResponse'
+                }
+              }
+            }
+          },
+          404: {
+            description: 'Material no encontrado',
+            content: {
+              'application/json': {
+                schema: {
+                  $ref: '#/components/schemas/ErrorResponse'
+                }
+              }
+            }
+          },
+          409: {
+            description: 'El material tiene relaciones y no se puede eliminar',
+            content: {
+              'application/json': {
+                schema: {
+                  $ref: '#/components/schemas/ErrorResponse'
+                }
+              }
+            }
+          }
+        }
       }
     },
     '/api/materials/{id}/toggle': {

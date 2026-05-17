@@ -114,4 +114,10 @@ export class MaterialsService {
       },
     });
   }
+
+  async delete(id: string) {
+    return await prisma.material.delete({
+      where: { id },
+    });
+  }
 }

@@ -1452,6 +1452,15 @@ export const openApiSpec = {
       get: {
         tags: ['Services'],
         summary: 'Lista todos los servicios activos',
+        parameters: [
+          {
+            name: 'all',
+            in: 'query',
+            required: false,
+            schema: { type: 'string', enum: ['true'] },
+            description: "Si 'true' devuelve todos los servicios (incluye inactivos). Requiere autenticación Admin."
+          }
+        ],
         responses: {
           200: {
             description: 'Lista de servicios',
@@ -1609,6 +1618,72 @@ export const openApiSpec = {
           },
           409: {
             description: 'Nombre duplicado',
+            content: {
+              'application/json': {
+                schema: {
+                  $ref: '#/components/schemas/ErrorResponse'
+                }
+              }
+            }
+          }
+        }
+      },
+      delete: {
+        tags: ['Services'],
+        summary: 'Elimina un servicio existente (solo Admin)',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: 'id',
+            in: 'path',
+            required: true,
+            schema: { type: 'string', format: 'uuid' },
+            description: 'ID del servicio'
+          }
+        ],
+        responses: {
+          200: {
+            description: 'Servicio eliminado',
+            content: {
+              'application/json': {
+                schema: {
+                  $ref: '#/components/schemas/CreateServiceResponse'
+                }
+              }
+            }
+          },
+          401: {
+            description: 'No autorizado',
+            content: {
+              'application/json': {
+                schema: {
+                  $ref: '#/components/schemas/ErrorResponse'
+                }
+              }
+            }
+          },
+          403: {
+            description: 'Prohibido - No es Admin',
+            content: {
+              'application/json': {
+                schema: {
+                  $ref: '#/components/schemas/ErrorResponse'
+                }
+              }
+            }
+          },
+          404: {
+            description: 'Servicio no encontrado',
+            content: {
+              'application/json': {
+                schema: {
+                  $ref: '#/components/schemas/ErrorResponse'
+                }
+              }
+            }
+          },
+          409: {
+            description: 'El servicio tiene relaciones y no se puede eliminar',
             content: {
               'application/json': {
                 schema: {

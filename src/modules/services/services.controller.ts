@@ -11,7 +11,7 @@ function isPricingModel(value: unknown): value is PricingModel {
 export class ServicesController {
   async findAllActive(req: Request, res: Response): Promise<any> {
     try {
-      const includeInactive = req.query.includeInactive === 'true';
+      const includeInactive = req.query.all === 'true';
       const services = await servicesService.findAllActive(includeInactive);
       return res.status(200).json({ data: services, total: services.length });
     } catch (error: any) {
@@ -72,6 +72,27 @@ export class ServicesController {
       if (error.message === 'Servicio no encontrado' || error.code === 'P2025') {
         return res.status(404).json({ error: true, message: 'Servicio no encontrado' });
       }
+      return res.status(500).json({ error: true, message: 'Error interno del servidor' });
+    }
+  }
+
+  async remove(req: Request, res: Response): Promise<any> {
+    try {
+      const id = req.params.id as string;
+      const service = await servicesService.delete(id);
+      return res.status(200).json({ data: service });
+    } catch (error: any) {
+      if (error.message === 'Servicio no encontrado' || error.code === 'P2025') {
+        return res.status(404).json({ error: true, message: 'Servicio no encontrado' });
+      }
+
+      if (error.code === 'P2003') {
+        return res.status(409).json({
+          error: true,
+          message: 'No se puede eliminar el servicio porque tiene materiales o pedidos asociados'
+        });
+      }
+
       return res.status(500).json({ error: true, message: 'Error interno del servidor' });
     }
   }

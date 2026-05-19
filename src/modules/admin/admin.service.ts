@@ -520,6 +520,76 @@ export class AdminService {
     };
   }
 
+  async getOperators() {
+    const operators = await prisma.operator.findMany({
+      include: {
+        user: {
+          select: {
+            id: true,
+            dni: true,
+            first_name: true,
+            last_name: true,
+            phone: true,
+            role: true,
+            created_at: true,
+          },
+        },
+        specialties: true,
+        _count: {
+          select: {
+            orders: true,
+          },
+        },
+      },
+      orderBy: { created_at: 'desc' },
+    });
+
+    return {
+      data: operators,
+      total: operators.length,
+    };
+  }
+
+  async toggleOperator(operatorId: string) {
+    const operator = await prisma.operator.findUnique({
+      where: { id: operatorId },
+      select: {
+        id: true,
+        is_active: true,
+      },
+    });
+
+    if (!operator) {
+      throw new Error('Operario no encontrado');
+    }
+
+    return prisma.operator.update({
+      where: { id: operatorId },
+      data: {
+        is_active: !operator.is_active,
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            dni: true,
+            first_name: true,
+            last_name: true,
+            phone: true,
+            role: true,
+            created_at: true,
+          },
+        },
+        specialties: true,
+        _count: {
+          select: {
+            orders: true,
+          },
+        },
+      },
+    });
+  }
+
   async createOperator(input: CreateOperatorInput) {
     if (input.specialties.length === 0) {
       throw new Error('Debe asignar al menos una especialidad al operario');

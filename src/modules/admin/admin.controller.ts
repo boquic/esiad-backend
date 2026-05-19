@@ -180,6 +180,29 @@ export class AdminController {
     }
   }
 
+  async getOperators(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const result = await adminService.getOperators();
+      res.status(200).json(result);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async toggleOperator(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const operator = await adminService.toggleOperator(req.params.id as string);
+      res.status(200).json({ data: operator });
+    } catch (error) {
+      if (error instanceof Error && error.message === 'Operario no encontrado') {
+        res.status(404).json({ error: true, message: error.message });
+        return;
+      }
+
+      next(error);
+    }
+  }
+
   async createOperator(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const specialties = adminService.parseSpecialties(parseStringArray(req.body.specialties));

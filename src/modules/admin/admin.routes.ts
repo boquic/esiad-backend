@@ -21,9 +21,11 @@ router.get('/stats/orders-by-status', adminController.getOrdersByStatusStats);
 router.get('/orders', adminController.getAdminOrders);
 router.get('/reports/orders/export', adminController.exportOrdersReport);
 router.get('/clients', adminController.getClients);
+router.get('/operators', adminController.getOperators);
 router.patch('/clients/:id/frequent', adminController.updateClientFrequentStatus);
 
 router.post('/operators', adminController.createOperator);
+router.patch('/operators/:id/toggle', adminController.toggleOperator);
 router.patch('/operators/:id', adminController.updateOperator);
 router.delete('/operators/:id', adminController.deleteOperator);
 

@@ -1608,6 +1608,85 @@ Marcar cliente como frecuente (requiere `ADMIN`). Body: `is_frequent` boolean (p
 
 ---
 
+## GET /api/admin/operators
+
+### Descripción
+
+Listar operarios (requiere `ADMIN`).
+
+### Response 200
+
+```json
+{
+  "data": [
+    {
+      "id": "uuid-operator-1",
+      "created_at": "2026-05-10T12:34:56.000Z",
+      "user": {
+        "id": "uuid-user-op",
+        "dni": "23456789",
+        "first_name": "Carlos",
+        "last_name": "Diaz",
+        "phone": "945678123",
+        "role": "OPERATOR",
+        "created_at": "2026-05-10T12:34:56.000Z"
+      },
+      "specialties": [
+        { "id": "uuid-spec-1", "specialty": "LASER" },
+        { "id": "uuid-spec-2", "specialty": "PLOTTING" }
+      ],
+      "_count": { "orders": 8 }
+    }
+  ],
+  "total": 1
+}
+```
+
+---
+
+## PATCH /api/admin/operators/:id/toggle
+
+### Descripción
+
+Activa o desactiva un operario (requiere `ADMIN`).
+
+### Response 200
+
+```json
+{
+  "data": {
+    "id": "uuid-operator-1",
+    "user_id": "uuid-user-op",
+    "is_active": false,
+    "created_at": "2026-05-10T12:34:56.000Z",
+    "user": {
+      "id": "uuid-user-op",
+      "dni": "23456789",
+      "first_name": "Carlos",
+      "last_name": "Diaz",
+      "phone": "945678123",
+      "role": "OPERATOR",
+      "created_at": "2026-05-10T12:34:56.000Z"
+    },
+    "specialties": [
+      { "id": "uuid-spec-1", "specialty": "LASER" }
+    ],
+    "_count": { "orders": 8 }
+  }
+}
+```
+
+### Response 404
+
+```json
+{
+  "error": true,
+  "message": "Operario no encontrado"
+}
+```
+
+---
+
 ## POST /api/admin/operators
 
 ### Descripción

@@ -1203,6 +1203,119 @@ export const openApiSpec = {
       }
     },
     '/api/admin/operators': {
+      get: {
+        tags: ['Admin'],
+        summary: 'Lista operarios (solo Admin)',
+        security: [{ bearerAuth: [] }],
+        responses: {
+          200: {
+            description: 'Lista de operarios',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    data: {
+                      type: 'array',
+                      items: {
+                        type: 'object',
+                        properties: {
+                          id: { type: 'string', format: 'uuid' },
+                          created_at: { type: 'string', format: 'date-time' },
+                          user: { $ref: '#/components/schemas/User' },
+                          specialties: {
+                            type: 'array',
+                            items: {
+                              type: 'object',
+                              properties: {
+                                id: { type: 'string', format: 'uuid' },
+                                specialty: {
+                                  type: 'string',
+                                  enum: ['LASER', 'PLOTTING', 'PRINTING_3D', 'MODEL']
+                                }
+                              }
+                            }
+                          },
+                          _count: {
+                            type: 'object',
+                            properties: {
+                              orders: { type: 'number', example: 8 }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    total: { type: 'number', example: 10 }
+                  }
+                }
+              }
+            }
+          },
+          401: {
+            description: 'No autorizado'
+          },
+          403: {
+            description: 'Prohibido - No es Admin'
+          }
+        }
+      },
+      patch: {
+        tags: ['Admin'],
+        summary: 'Activa o desactiva un operario (solo Admin)',
+        security: [{ bearerAuth: [] }],
+        responses: {
+          200: {
+            description: 'Operario actualizado exitosamente',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    data: {
+                      type: 'object',
+                      properties: {
+                        id: { type: 'string', format: 'uuid' },
+                        user_id: { type: 'string', format: 'uuid' },
+                        is_active: { type: 'boolean', example: false },
+                        created_at: { type: 'string', format: 'date-time' },
+                        user: { $ref: '#/components/schemas/User' },
+                        specialties: {
+                          type: 'array',
+                          items: {
+                            type: 'object',
+                            properties: {
+                              id: { type: 'string', format: 'uuid' },
+                              specialty: {
+                                type: 'string',
+                                enum: ['LASER', 'PLOTTING', 'PRINTING_3D', 'MODEL']
+                              }
+                            }
+                          }
+                        },
+                        _count: {
+                          type: 'object',
+                          properties: {
+                            orders: { type: 'number', example: 8 }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          401: {
+            description: 'No autorizado'
+          },
+          403: {
+            description: 'Prohibido - No es Admin'
+          },
+          404: {
+            description: 'Operario no encontrado'
+          }
+        }
+      },
       post: {
         tags: ['Admin'],
         summary: 'Crea un nuevo operario (solo Admin)',
@@ -1320,9 +1433,7 @@ export const openApiSpec = {
             description: 'Operario no encontrado'
           }
         }
-      }
-    },
-    '/api/admin/operators/{id}': {
+      },
       delete: {
         tags: ['Admin'],
         summary: 'Elimina un operario (solo Admin)',

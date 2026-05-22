@@ -2,6 +2,7 @@ import path from 'path';
 import { Prisma, PricingModel, Specialty } from '@prisma/client';
 import { ENV } from '../../config/env';
 import { prisma } from '../../config/database';
+import { notificationsService } from '../notifications/notifications.service';
 
 const operatorQueueOrderInclude = Prisma.validator<Prisma.OrderDefaultArgs>()({
   include: {
@@ -205,6 +206,8 @@ export class OperatorsService {
       where: { id: orderId },
       data: { status: 'READY' }
     });
+
+    await notificationsService.send(updatedOrder.id, 'ORDER_READY');
 
     return {
       id: updatedOrder.id,

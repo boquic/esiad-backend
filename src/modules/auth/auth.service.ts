@@ -3,6 +3,7 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { ENV } from '../../config/env';
 import { prisma } from '../../config/database';
+import { notificationsService } from '../notifications/notifications.service';
 
 type RegisterInput = {
   dni: string;
@@ -51,6 +52,8 @@ export class AuthService {
         role: 'CLIENT',
       },
     });
+
+    await notificationsService.sendWelcomeMessage(newUser.first_name, newUser.phone);
 
     const { password_hash: _, ...userWithoutPassword } = newUser;
     return userWithoutPassword;

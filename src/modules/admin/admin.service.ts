@@ -2,6 +2,7 @@ import { Prisma, PricingModel, Role, Specialty } from '@prisma/client';
 import bcrypt from 'bcrypt';
 import * as XLSX from 'xlsx';
 import { prisma } from '../../config/database';
+import { notificationsService } from '../notifications/notifications.service';
 
 type DateRangeKey = 'today' | 'week' | 'month';
 
@@ -176,7 +177,7 @@ export class AdminService {
       throw new Error('El pago no está pendiente de revisión');
     }
 
-    return prisma.$transaction(async (tx) => {
+    const approvedPayment = await prisma.$transaction(async (tx) => {
       const approvedPayment = await tx.payment.update({
         where: { id: paymentId },
         data: {
@@ -192,6 +193,10 @@ export class AdminService {
 
       return approvedPayment;
     });
+
+    await notificationsService.send(payment.order_id, 'PAYMENT_CONFIRMED');
+
+    return approvedPayment;
   }
 
   async rejectPayment(paymentId: string, adminComment: string) {

@@ -1,5 +1,6 @@
 import { prisma } from '../../config/database';
 import { FileType, Prisma, PricingModel } from '@prisma/client';
+import { notificationsService } from '../notifications/notifications.service';
 
 function calculateEstimatedDeliveryAt(pricingModel: PricingModel): Date {
   const estimatedDeliveryAt = new Date();
@@ -100,7 +101,7 @@ export class OrdersService {
     const estimated_delivery_at = calculateEstimatedDeliveryAt(serviceType.pricing_model);
 
     // 7. Crear el pedido
-    return await prisma.order.create({
+    const order = await prisma.order.create({
       data: {
         client_id: clientId,
         service_type_id,
@@ -118,6 +119,10 @@ export class OrdersService {
         material: true,
       },
     });
+
+    await notificationsService.send(order.id, 'BUDGET_READY');
+
+    return order;
   }
 
   async findByClientId(clientId: string) {

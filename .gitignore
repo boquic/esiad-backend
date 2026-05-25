@@ -35,3 +35,6 @@ Thumbs.db
 *.tsbuildinfo
 *.tmp
 *.swp
+
+#
+uploads/*

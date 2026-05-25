@@ -53,4 +53,17 @@ router.post('/:id/confirm-pickup',
   ordersController.confirmPickup.bind(ordersController)
 );
 
+// Descarga protegida de archivos (solo cliente propietario)
+router.get('/:id/file',
+  authMiddleware,
+  requireRole(['CLIENT']),
+  ordersController.downloadPrimaryOrderFile.bind(ordersController)
+);
+
+router.get('/:id/files/:fileId/download',
+  authMiddleware,
+  requireRole(['CLIENT']),
+  ordersController.downloadOrderFile.bind(ordersController)
+);
+
 export default router;

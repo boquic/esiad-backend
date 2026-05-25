@@ -2376,5 +2376,46 @@ export const openApiSpec = {
         }
       }
     }
+    ,
+    '/api/orders/{id}/confirm-pickup': {
+      post: {
+        tags: ['Orders'],
+        summary: 'Confirmar recogida del pedido por parte del cliente (doble validación)',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: 'id',
+            in: 'path',
+            required: true,
+            schema: { type: 'string', format: 'uuid' },
+            description: 'ID del pedido a confirmar'
+          }
+        ],
+        requestBody: {
+          required: false
+        },
+        responses: {
+          200: {
+            description: 'Pedido marcado como DELIVERED',
+            content: {
+              'application/json': {
+                schema: {
+                  $ref: '#/components/schemas/OrderResponse'
+                }
+              }
+            }
+          },
+          400: {
+            description: 'No se puede confirmar la recogida (estado inválido)'
+          },
+          401: {
+            description: 'No autorizado'
+          },
+          404: {
+            description: 'Pedido no encontrado'
+          }
+        }
+      }
+    }
   }
 } as const;

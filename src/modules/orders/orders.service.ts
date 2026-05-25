@@ -1,5 +1,7 @@
 import { prisma } from '../../config/database';
-import { FileType, Prisma, PricingModel } from '@prisma/client';
+import { FileType, Prisma, PricingModel, Specialty } from '@prisma/client';
+import path from 'path';
+import { ENV } from '../../config/env';
 import { notificationsService } from '../notifications/notifications.service';
 
 function calculateEstimatedDeliveryAt(pricingModel: PricingModel): Date {
@@ -18,6 +20,20 @@ function calculateEstimatedDeliveryAt(pricingModel: PricingModel): Date {
   }
 
   return estimatedDeliveryAt;
+}
+
+function mapPricingModelToSpecialty(pricingModel: PricingModel): Specialty {
+  switch (pricingModel) {
+    case 'PER_UNIT':
+      return 'LASER';
+    case 'PER_M2':
+      return 'PLOTTING';
+    case 'PER_VOLUME':
+      return 'PRINTING_3D';
+    case 'FIXED':
+    default:
+      return 'MODEL';
+  }
 }
 
 export class OrdersService {
@@ -99,11 +115,34 @@ export class OrdersService {
     const budget_expires_at = new Date();
     budget_expires_at.setHours(budget_expires_at.getHours() + 24);
     const estimated_delivery_at = calculateEstimatedDeliveryAt(serviceType.pricing_model);
+    const requiredSpecialty = mapPricingModelToSpecialty(serviceType.pricing_model);
+
+    const operator = await prisma.operator.findFirst({
+      where: {
+        is_active: true,
+        specialties: {
+          some: {
+            specialty: requiredSpecialty,
+          },
+        },
+      },
+      orderBy: {
+        created_at: 'asc',
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!operator) {
+      throw new Error(`No hay operarios disponibles con la especialidad ${requiredSpecialty}`);
+    }
 
     // 7. Crear el pedido
     const order = await prisma.order.create({
       data: {
         client_id: clientId,
+        operator_id: operator.id,
         service_type_id,
         material_id,
         status: 'BUDGETED',
@@ -276,5 +315,81 @@ export class OrdersService {
     });
 
     return updated;
+  }
+
+  async getDownloadableFile(clientId: string, orderId: string, fileId: string) {
+    const order = await prisma.order.findFirst({
+      where: { id: orderId }
+    });
+
+    if (!order) {
+      throw new Error('Pedido no encontrado');
+    }
+
+    if (order.client_id !== clientId) {
+      throw new Error('No tienes permiso para acceder a este archivo');
+    }
+
+    const file = await prisma.orderFile.findFirst({
+      where: {
+        id: fileId,
+        order_id: orderId
+      }
+    });
+
+    if (!file) {
+      throw new Error('Archivo no encontrado');
+    }
+
+    const relativePath = file.file_url.replace(/^\/+/, '').replace(/\//g, path.sep);
+    const absolutePath = path.resolve(process.cwd(), relativePath);
+    const uploadsRoot = path.resolve(process.cwd(), ENV.UPLOAD_PATH);
+
+    if (!absolutePath.startsWith(uploadsRoot)) {
+      throw new Error('Ruta de archivo inválida');
+    }
+
+    return {
+      absolutePath,
+      originalFileName: path.basename(file.file_url),
+      fileType: file.file_type
+    };
+  }
+
+  async getPrimaryDownloadableFile(clientId: string, orderId: string) {
+    const order = await prisma.order.findFirst({
+      where: { id: orderId }
+    });
+
+    if (!order) {
+      throw new Error('Pedido no encontrado');
+    }
+
+    if (order.client_id !== clientId) {
+      throw new Error('No tienes permiso para acceder a este archivo');
+    }
+
+    const file = await prisma.orderFile.findFirst({
+      where: { order_id: orderId },
+      orderBy: { uploaded_at: 'asc' }
+    });
+
+    if (!file) {
+      throw new Error('Archivo no encontrado');
+    }
+
+    const relativePath = file.file_url.replace(/^\/+/, '').replace(/\//g, path.sep);
+    const absolutePath = path.resolve(process.cwd(), relativePath);
+    const uploadsRoot = path.resolve(process.cwd(), ENV.UPLOAD_PATH);
+
+    if (!absolutePath.startsWith(uploadsRoot)) {
+      throw new Error('Ruta de archivo inválida');
+    }
+
+    return {
+      absolutePath,
+      originalFileName: path.basename(file.file_url),
+      fileType: file.file_type
+    };
   }
 }

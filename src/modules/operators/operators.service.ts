@@ -109,7 +109,7 @@ function buildSafeOperatorOrder(order: OperatorQueueOrder | OperatorDetailOrder)
 }
 
 export class OperatorsService {
-  async getAssignedOrders(userId: string) {
+  async getAssignedOrders(userId: string, specialtyFilter?: string) {
     const operator = await prisma.operator.findUnique({
       where: { user_id: userId },
       include: { specialties: true }
@@ -119,11 +119,31 @@ export class OperatorsService {
       throw new Error('Operario no encontrado');
     }
 
+    const allowedSpecialties = operator.specialties.map((s) => s.specialty);
+    const requestedSpecialties = specialtyFilter 
+      ? [specialtyFilter.toUpperCase() as Specialty].filter((s) => allowedSpecialties.includes(s))
+      : allowedSpecialties;
+
+    const allowedPricingModels: PricingModel[] = requestedSpecialties.map((s) => {
+      switch(s) {
+        case 'LASER': return 'PER_UNIT';
+        case 'PLOTTING': return 'PER_M2';
+        case 'PRINTING_3D': return 'PER_VOLUME';
+        case 'MODEL':
+        default: return 'FIXED';
+      }
+    });
+
     const orders = await prisma.order.findMany({
       where: {
         operator_id: operator.id,
         status: {
-          in: ['IN_PROGRESS', 'READY']
+          in: ['PENDING_PAYMENT', 'IN_PROGRESS', 'READY']
+        },
+        service_type: {
+          pricing_model: {
+            in: allowedPricingModels
+          }
         }
       },
       ...operatorQueueOrderInclude,
@@ -132,10 +152,7 @@ export class OperatorsService {
       }
     });
 
-    const allowedSpecialties = new Set(operator.specialties.map((specialty) => specialty.specialty));
-
     return orders
-      .filter((order) => allowedSpecialties.has(mapPricingModelToSpecialty(order.service_type.pricing_model)))
       .sort((left, right) => {
         const leftTime = left.estimated_delivery_at?.getTime() ?? Number.MAX_SAFE_INTEGER;
         const rightTime = right.estimated_delivery_at?.getTime() ?? Number.MAX_SAFE_INTEGER;
@@ -194,20 +211,51 @@ export class OperatorsService {
       throw new Error('No puedes cambiar el estado de un pedido que no te fue asignado');
     }
 
-    if (status !== 'READY') {
-      throw new Error('Estado inválido. Solo puedes marcar el pedido como READY');
+    if (status !== 'IN_PROGRESS' && status !== 'READY') {
+      throw new Error('Estado inválido. Solo puedes marcar el pedido como IN_PROGRESS o READY');
     }
 
-    if (order.status !== 'IN_PROGRESS') {
+    if (status === 'IN_PROGRESS' && order.status !== 'PENDING_PAYMENT') {
+      throw new Error(`Solo se puede marcar como IN_PROGRESS un pedido en estado PENDING_PAYMENT. Estado actual: ${order.status}`);
+    }
+
+    if (status === 'READY' && order.status !== 'IN_PROGRESS') {
       throw new Error(`Solo se puede marcar como READY un pedido en estado IN_PROGRESS. Estado actual: ${order.status}`);
     }
 
-    const updatedOrder = await prisma.order.update({
-      where: { id: orderId },
-      data: { status: 'READY' }
-    });
+    let updatedOrder;
 
-    await notificationsService.send(updatedOrder.id, 'ORDER_READY');
+    if (status === 'IN_PROGRESS') {
+      updatedOrder = await prisma.$transaction(async (tx) => {
+        const pendingPayment = await tx.payment.findFirst({
+          where: { order_id: orderId, status: 'PENDING' }
+        });
+
+        if (pendingPayment) {
+          await tx.payment.update({
+            where: { id: pendingPayment.id },
+            data: {
+              status: 'APPROVED',
+              reviewed_at: new Date()
+            }
+          });
+        }
+
+        return tx.order.update({
+          where: { id: orderId },
+          data: { status: 'IN_PROGRESS' }
+        });
+      });
+
+      await notificationsService.send(updatedOrder.id, 'PAYMENT_CONFIRMED');
+    } else {
+      updatedOrder = await prisma.order.update({
+        where: { id: orderId },
+        data: { status: 'READY' }
+      });
+
+      await notificationsService.send(updatedOrder.id, 'ORDER_READY');
+    }
 
     return {
       id: updatedOrder.id,
@@ -273,6 +321,54 @@ export class OperatorsService {
       where: {
         id: fileId,
         order_id: orderId
+      }
+    });
+
+    if (!file) {
+      throw new Error('Archivo no encontrado');
+    }
+
+    const relativePath = file.file_url.replace(/^\/+/, '').replace(/\//g, path.sep);
+    const absolutePath = path.resolve(process.cwd(), relativePath);
+    const uploadsRoot = path.resolve(process.cwd(), ENV.UPLOAD_PATH);
+
+    if (!absolutePath.startsWith(uploadsRoot)) {
+      throw new Error('Ruta de archivo inválida');
+    }
+
+    return {
+      absolutePath,
+      originalFileName: path.basename(file.file_url),
+      fileType: file.file_type
+    };
+  }
+
+  async getPrimaryDownloadableFile(userId: string, orderId: string) {
+    const operator = await prisma.operator.findUnique({
+      where: { user_id: userId }
+    });
+
+    if (!operator) {
+      throw new Error('Operario no encontrado');
+    }
+
+    const order = await prisma.order.findFirst({
+      where: {
+        id: orderId,
+        operator_id: operator.id
+      }
+    });
+
+    if (!order) {
+      throw new Error('Pedido no encontrado o no asignado a este operario');
+    }
+
+    const file = await prisma.orderFile.findFirst({
+      where: {
+        order_id: orderId
+      },
+      orderBy: {
+        uploaded_at: 'asc'
       }
     });
 

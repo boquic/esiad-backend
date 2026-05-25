@@ -20,6 +20,13 @@ router.get(
 );
 
 router.get(
+  '/orders/:id/file',
+  authMiddleware,
+  requireRole(['OPERATOR']),
+  operatorsController.downloadPrimaryOrderFile
+);
+
+router.get(
   '/orders/:id/files/:fileId/download',
   authMiddleware,
   requireRole(['OPERATOR']),

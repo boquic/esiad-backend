@@ -20,6 +20,9 @@ router.get('/stats/orders-by-status', adminController.getOrdersByStatusStats);
 
 router.get('/orders', adminController.getAdminOrders);
 router.get('/reports/orders/export', adminController.exportOrdersReport);
+router.get('/reports/sales/export', adminController.exportSalesStatsReport);
+router.get('/reports/clients/export', adminController.exportClientsStatsReport);
+router.get('/reports/operators/export', adminController.exportOperatorsStatsReport);
 router.get('/clients', adminController.getClients);
 router.get('/operators', adminController.getOperators);
 router.patch('/clients/:id/frequent', adminController.updateClientFrequentStatus);

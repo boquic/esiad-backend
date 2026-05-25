@@ -840,6 +840,69 @@ export class AdminService {
     return XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
   }
 
+  async exportSalesStats(filters: SalesStatsFilters) {
+    const stats = await this.getSalesStats(filters);
+    
+    const summaryRows = [
+      { Métrica: 'Total Ventas', Valor: stats.totalSales },
+      { Métrica: 'Ventas Adelantos', Valor: stats.advanceSales },
+      { Métrica: 'Ventas Finales', Valor: stats.finalSales },
+      { Métrica: 'Total Pagos', Valor: stats.totalPayments }
+    ];
+
+    const dailyRows = stats.dailySales.map((day) => ({
+      Fecha: day.date,
+      Total: day.total
+    }));
+
+    const workbook = XLSX.utils.book_new();
+    const summarySheet = XLSX.utils.json_to_sheet(summaryRows);
+    const dailySheet = XLSX.utils.json_to_sheet(dailyRows);
+    
+    XLSX.utils.book_append_sheet(workbook, summarySheet, 'Resumen');
+    XLSX.utils.book_append_sheet(workbook, dailySheet, 'Ventas Diarias');
+
+    return XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+  }
+
+  async exportClientsStats() {
+    const clients = await this.getTopClients();
+    
+    const rows = clients.map((client) => ({
+      'ID Cliente': client.client_id,
+      'Nombre Completo': `${client.first_name} ${client.last_name}`,
+      DNI: client.dni,
+      Teléfono: client.phone,
+      'Pedidos Entregados': client.delivered_orders_count,
+      'Total Pedidos Completados': client.registered_completed_orders_count,
+      'Cliente Recurrente': client.is_frequent ? 'SÍ' : 'NO'
+    }));
+
+    const workbook = XLSX.utils.book_new();
+    const worksheet = XLSX.utils.json_to_sheet(rows);
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Top Clientes');
+
+    return XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+  }
+
+  async exportOperatorsStats() {
+    const operators = await this.getOperatorsStats();
+    
+    const rows = operators.map((op) => ({
+      'ID Operario': op.operator_id,
+      'Nombre Completo': `${op.first_name} ${op.last_name}`,
+      Especialidades: op.specialties.join(', '),
+      'Pedidos Atendidos': op.orders_attended,
+      'Tiempo Promedio (Horas)': op.average_time_hours
+    }));
+
+    const workbook = XLSX.utils.book_new();
+    const worksheet = XLSX.utils.json_to_sheet(rows);
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Auditoría Taller');
+
+    return XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+  }
+
   parseSpecialties(rawSpecialties: string[]): Specialty[] {
     const parsed = sanitizeSpecialties(rawSpecialties);
 

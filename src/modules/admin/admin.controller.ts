@@ -327,6 +327,59 @@ export class AdminController {
     }
   }
 
+  async exportSalesStatsReport(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const buffer = await adminService.exportSalesStats({
+        startDate: req.query.startDate as string | undefined,
+        endDate: req.query.endDate as string | undefined,
+        range: req.query.range as string | undefined,
+      });
+
+      res.setHeader(
+        'Content-Type',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      );
+      res.setHeader('Content-Disposition', 'attachment; filename="admin-sales-report.xlsx"');
+      res.status(200).send(buffer);
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('fecha')) {
+        res.status(400).json({ error: true, message: error.message });
+        return;
+      }
+      next(error);
+    }
+  }
+
+  async exportClientsStatsReport(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const buffer = await adminService.exportClientsStats();
+
+      res.setHeader(
+        'Content-Type',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      );
+      res.setHeader('Content-Disposition', 'attachment; filename="admin-clients-report.xlsx"');
+      res.status(200).send(buffer);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async exportOperatorsStatsReport(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const buffer = await adminService.exportOperatorsStats();
+
+      res.setHeader(
+        'Content-Type',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      );
+      res.setHeader('Content-Disposition', 'attachment; filename="admin-operators-report.xlsx"');
+      res.status(200).send(buffer);
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async exportOrdersReport(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const buffer = await adminService.exportOrdersReport({

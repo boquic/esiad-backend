@@ -46,4 +46,11 @@ router.post('/:id/confirm',
   ordersController.confirmBudget.bind(ordersController)
 );
 
+// Confirmar recogida por parte del cliente (doble validación)
+router.post('/:id/confirm-pickup',
+  authMiddleware,
+  requireRole(['CLIENT']),
+  ordersController.confirmPickup.bind(ordersController)
+);
+
 export default router;

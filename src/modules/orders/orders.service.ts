@@ -232,4 +232,49 @@ export class OrdersService {
       data: { status: nextStatus }
     });
   }
+
+  async confirmPickup(orderId: string, clientId: string) {
+    const order = await prisma.order.findFirst({
+      where: {
+        id: orderId,
+        client_id: clientId,
+      }
+    });
+
+    if (!order) {
+      throw new Error('Pedido no encontrado');
+    }
+
+    if (order.status !== 'READY') {
+      throw new Error(`No se puede confirmar la recogida de un pedido en estado ${order.status}`);
+    }
+
+    // Marcar como DELIVERED y actualizar contador de pedidos completados del cliente
+    const updated = await prisma.$transaction(async (tx) => {
+      const updatedOrder = await tx.order.update({
+        where: { id: orderId },
+        data: { status: 'DELIVERED' }
+      });
+
+      const user = await tx.user.update({
+        where: { id: clientId },
+        data: {
+          completed_orders_count: { increment: 1 }
+        },
+        select: { completed_orders_count: true }
+      });
+
+      // Si alcanzó el umbral de 5 pedidos, marcar como frecuente
+      if (user.completed_orders_count >= 5) {
+        await tx.user.update({
+          where: { id: clientId },
+          data: { is_frequent: true }
+        });
+      }
+
+      return updatedOrder;
+    });
+
+    return updated;
+  }
 }

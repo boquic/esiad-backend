@@ -122,4 +122,24 @@ export class OrdersController {
       return res.status(500).json({ error: true, message: 'Error interno del servidor' });
     }
   }
+
+  async confirmPickup(req: Request, res: Response): Promise<any> {
+    try {
+      const clientId = req.user.id as string;
+      const id = req.params.id as string;
+
+      const order = await ordersService.confirmPickup(id, clientId);
+
+      return res.status(200).json({ data: order });
+    } catch (error: any) {
+      if (error.message === 'Pedido no encontrado') {
+        return res.status(404).json({ error: true, message: error.message });
+      }
+      if (error.message.includes('No se puede') || error.message.includes('estado')) {
+        return res.status(400).json({ error: true, message: error.message });
+      }
+      console.error('Error confirming pickup:', error);
+      return res.status(500).json({ error: true, message: 'Error interno del servidor' });
+    }
+  }
 }

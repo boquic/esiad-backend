@@ -249,17 +249,36 @@ export const openApiSpec = {
         properties: {
           id: { type: 'string', example: 'a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d' },
           client_id: { type: 'string', example: '8b0c2c8f-5f26-4f88-9c78-8d7f3c4f2c1a' },
+          operator_id: { type: 'string', nullable: true, example: '3a1b2c3d-4e5f-6789-abcd-ef0123456789' },
           service_type_id: { type: 'string', example: 'f47ac10b-58cc-4372-a567-0e02b2c3d479' },
           material_id: { type: 'string', example: 'd290f1ee-6c54-4b01-90e6-d701748f0851' },
-          status: { type: 'string', enum: ['BUDGETED', 'PENDING_PAYMENT', 'IN_PROGRESS', 'READY', 'DELIVERED', 'CANCELLED', 'EXPIRED'], example: 'BUDGETED' },
+          status: { type: 'string', enum: ['BUDGETED', 'CLIENT_REVIEW_PENDING', 'OPERATOR_REVIEW_PENDING', 'PENDING_PAYMENT', 'IN_PROGRESS', 'READY', 'DELIVERED', 'CANCELLED', 'EXPIRED'], example: 'BUDGETED' },
           payment_condition: { type: 'string', enum: ['ADVANCE_50', 'CASH_ON_DELIVERY'], example: 'ADVANCE_50' },
           estimated_price: { type: 'number', example: 150.00 },
+          final_price: { type: 'number', nullable: true, example: 165.00 },
           advance_amount: { type: 'number', nullable: true, example: 75.00 },
           budget_expires_at: { type: 'string', format: 'date-time' },
+          estimated_delivery_at: { type: 'string', format: 'date-time', nullable: true },
           notes: { type: 'string', nullable: true, example: 'Corte con borde pulido' },
+          client_review_notes: { type: 'string', nullable: true, example: 'Confirmo medidas y material' },
+          client_reviewed_at: { type: 'string', format: 'date-time', nullable: true },
+          operator_notes: { type: 'string', nullable: true, example: 'Revisar bordes antes de cortar' },
+          operator_reviewed_at: { type: 'string', format: 'date-time', nullable: true },
+          operator_price_adjustment_reason: { type: 'string', nullable: true, example: 'Archivo requiere mas tiempo de corte' },
+          production_time_estimate: { type: 'string', nullable: true, example: '48 horas' },
+          production_started_at: { type: 'string', format: 'date-time', nullable: true },
+          production_ready_at: { type: 'string', format: 'date-time', nullable: true },
           created_at: { type: 'string', format: 'date-time' },
           service_type: { $ref: '#/components/schemas/ServiceType' },
           material: { $ref: '#/components/schemas/Material' },
+          operator: {
+            type: 'object',
+            nullable: true,
+            properties: {
+              id: { type: 'string', example: '3a1b2c3d-4e5f-6789-abcd-ef0123456789' },
+              user: { $ref: '#/components/schemas/User' }
+            }
+          },
           files: { type: 'array', items: { $ref: '#/components/schemas/OrderFile' } },
           payments: { type: 'array', items: { $ref: '#/components/schemas/Payment' } }
         }
@@ -469,6 +488,148 @@ export const openApiSpec = {
           404: {
             description: 'Pedido no encontrado'
           }
+        }
+      }
+    },
+    '/api/operator/orders/{id}/review': {
+      post: {
+        tags: ['Operator'],
+        summary: 'Revisar pedido asignado: aprobar, devolver al cliente o rechazar',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: 'id',
+            in: 'path',
+            required: true,
+            schema: { type: 'string', format: 'uuid' },
+            description: 'ID del pedido'
+          }
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['action'],
+                properties: {
+                  action: {
+                    type: 'string',
+                    enum: ['APPROVE', 'RETURN_TO_CLIENT', 'REJECT'],
+                    example: 'APPROVE'
+                  },
+                  notes: {
+                    type: 'string',
+                    example: 'Archivos revisados y presupuesto validado'
+                  }
+                }
+              }
+            }
+          }
+        },
+        responses: {
+          200: {
+            description: 'Revision registrada',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/OrderResponse' }
+              }
+            }
+          },
+          400: { description: 'Accion invalida o estado incorrecto' },
+          401: { description: 'No autorizado' },
+          403: { description: 'Pedido no asignado al operario' },
+          404: { description: 'Pedido no encontrado' }
+        }
+      }
+    },
+    '/api/operator/orders/{id}/price': {
+      patch: {
+        tags: ['Operator'],
+        summary: 'Ajustar precio final del pedido y devolverlo a revision del cliente',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: 'id',
+            in: 'path',
+            required: true,
+            schema: { type: 'string', format: 'uuid' },
+            description: 'ID del pedido'
+          }
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['final_price', 'reason'],
+                properties: {
+                  final_price: { type: 'number', example: 165.00 },
+                  reason: { type: 'string', example: 'El archivo requiere mas tiempo de corte' }
+                }
+              }
+            }
+          }
+        },
+        responses: {
+          200: {
+            description: 'Precio ajustado',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/OrderResponse' }
+              }
+            }
+          },
+          400: { description: 'Precio, motivo o estado invalido' },
+          401: { description: 'No autorizado' },
+          403: { description: 'Pedido no asignado al operario' },
+          404: { description: 'Pedido no encontrado' }
+        }
+      }
+    },
+    '/api/operator/orders/{id}/production-time': {
+      patch: {
+        tags: ['Operator'],
+        summary: 'Registrar tiempo estimado de produccion o entrega',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: 'id',
+            in: 'path',
+            required: true,
+            schema: { type: 'string', format: 'uuid' },
+            description: 'ID del pedido'
+          }
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['production_time_estimate'],
+                properties: {
+                  production_time_estimate: { type: 'string', example: '48 horas' },
+                  estimated_delivery_at: { type: 'string', format: 'date-time' }
+                }
+              }
+            }
+          }
+        },
+        responses: {
+          200: {
+            description: 'Tiempo de produccion registrado',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/OrderResponse' }
+              }
+            }
+          },
+          400: { description: 'Datos o estado invalido' },
+          401: { description: 'No autorizado' },
+          403: { description: 'Pedido no asignado al operario' },
+          404: { description: 'Pedido no encontrado' }
         }
       }
     },
@@ -2352,7 +2513,7 @@ export const openApiSpec = {
         ],
         responses: {
           200: {
-            description: 'Presupuesto confirmado, estado cambiado a PENDING_PAYMENT',
+            description: 'Revision confirmada, estado cambiado a OPERATOR_REVIEW_PENDING',
             content: {
               'application/json': {
                 schema: { $ref: '#/components/schemas/OrderResponse' }
@@ -2375,8 +2536,106 @@ export const openApiSpec = {
           }
         }
       }
-    }
-    ,
+    },
+    '/api/orders/{id}/confirm-review': {
+      post: {
+        tags: ['Orders'],
+        summary: 'Confirmar revision del pedido por parte del cliente',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: 'id',
+            in: 'path',
+            required: true,
+            schema: { type: 'string', format: 'uuid' },
+            description: 'ID del pedido'
+          }
+        ],
+        requestBody: {
+          required: false,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  notes: { type: 'string', example: 'Confirmo medidas, material y presupuesto' }
+                }
+              }
+            }
+          }
+        },
+        responses: {
+          200: {
+            description: 'Revision confirmada',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/OrderResponse' }
+              }
+            }
+          },
+          400: {
+            description: 'Presupuesto expirado o pedido en estado incorrecto',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorResponse' }
+              }
+            }
+          },
+          401: { description: 'No autorizado' },
+          404: { description: 'Pedido no encontrado o sin permiso' }
+        }
+      }
+    },
+    '/api/orders/{id}/observations': {
+      post: {
+        tags: ['Orders'],
+        summary: 'Enviar observaciones del cliente sobre el pedido',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: 'id',
+            in: 'path',
+            required: true,
+            schema: { type: 'string', format: 'uuid' },
+            description: 'ID del pedido'
+          }
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['observation'],
+                properties: {
+                  observation: { type: 'string', example: 'La medida correcta es 60 x 40 cm' }
+                }
+              }
+            }
+          }
+        },
+        responses: {
+          200: {
+            description: 'Observacion registrada',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/OrderResponse' }
+              }
+            }
+          },
+          400: {
+            description: 'Observacion faltante o estado incorrecto',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorResponse' }
+              }
+            }
+          },
+          401: { description: 'No autorizado' },
+          404: { description: 'Pedido no encontrado o sin permiso' }
+        }
+      }
+    },
     '/api/orders/{id}/confirm-pickup': {
       post: {
         tags: ['Orders'],

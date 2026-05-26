@@ -1,9 +1,19 @@
-import { TriggerEvent } from '@prisma/client';
+import { Prisma, TriggerEvent } from '@prisma/client';
 import twilio from 'twilio';
 import { prisma } from '../../config/database';
 import { ENV } from '../../config/env';
 
-type OrderWithClient = Awaited<ReturnType<typeof prisma.order.findUnique>>;
+type OrderWithClient = Prisma.OrderGetPayload<{
+  include: {
+    client: {
+      select: {
+        id: true;
+        phone: true;
+        first_name: true;
+      };
+    };
+  };
+}>;
 
 function normalizePhoneForWhatsapp(phone: string): string {
   const digits = phone.replace(/\D/g, '');
@@ -15,18 +25,30 @@ function normalizePhoneForWhatsapp(phone: string): string {
   return `whatsapp:+51${digits}`;
 }
 
-function buildOrderNotificationMessage(order: NonNullable<OrderWithClient>, triggerEvent: TriggerEvent): string {
+function buildOrderNotificationMessage(order: OrderWithClient, triggerEvent: TriggerEvent): string {
   const shortOrderId = order.id.slice(0, 8);
 
   switch (triggerEvent) {
     case 'BUDGET_READY':
-      return `Tu presupuesto para el pedido #${shortOrderId} está listo. Monto: S/ ${Number(order.estimated_price).toFixed(2)}. Ingresa a la plataforma para revisar tu pedido. Responde *1* si ya lo viste.`;
+      return `Tu presupuesto para el pedido #${shortOrderId} esta listo. Monto: S/ ${Number(order.estimated_price).toFixed(2)}. Ingresa a la plataforma para revisar tu pedido.`;
+    case 'CLIENT_OBSERVATION_RECEIVED':
+      return `Recibimos tus observaciones para el pedido #${shortOrderId}. El equipo revisara los detalles y te avisaremos el siguiente paso.`;
+    case 'BUDGET_ADJUSTED':
+      return `El presupuesto del pedido #${shortOrderId} fue ajustado. Ingresa a la plataforma para revisar el nuevo monto y confirmar si esta correcto.`;
+    case 'OPERATOR_REVIEW_APPROVED':
+      return `Tu pedido #${shortOrderId} fue aprobado por el operario. Ya puedes continuar con el pago si corresponde.`;
     case 'PAYMENT_CONFIRMED':
-      return `✅ Tu pago fue confirmado. El pedido #${shortOrderId} está en producción. Te avisamos cuando esté listo.`;
+      return `Tu pago fue confirmado. El pedido #${shortOrderId} esta en produccion. Te avisamos cuando este listo.`;
+    case 'ORDER_IN_PRODUCTION':
+      return `Tu pedido #${shortOrderId} ya esta en produccion. Te avisaremos cuando este listo para recoger.`;
+    case 'ORDER_DELAYED':
+      return `Tu pedido #${shortOrderId} tiene un retraso. Te avisaremos apenas tengamos una nueva actualizacion.`;
     case 'ORDER_READY':
-      return `🎉 Tu pedido #${shortOrderId} está listo para recoger en tienda. Recuerda traer tu DNI.\nResponde *1* para confirmar que lo viste.`;
+      return `Tu pedido #${shortOrderId} esta listo para recoger en tienda. Recuerda traer tu DNI.`;
     case 'PICKUP_REMINDER_48H':
-      return `Recordatorio: Tu pedido #${shortOrderId} lleva más de 48 horas listo en tienda.\nResponde *1* si vas a recogerlo hoy.`;
+      return `Recordatorio: Tu pedido #${shortOrderId} lleva mas de 48 horas listo en tienda.`;
+    case 'ORDER_DELIVERED':
+      return `Gracias por confirmar la recepcion del pedido #${shortOrderId}. El pedido quedo cerrado como entregado.`;
     default:
       return '';
   }
@@ -56,7 +78,7 @@ export class NotificationsService {
     });
 
     if (!order) {
-      throw new Error('Pedido no encontrado para notificación');
+      throw new Error('Pedido no encontrado para notificacion');
     }
 
     const message = buildOrderNotificationMessage(order, triggerEvent);
@@ -68,7 +90,7 @@ export class NotificationsService {
   }
 
   async sendWelcomeMessage(firstName: string, phone: string): Promise<void> {
-    const message = `Hola ${firstName} 👋 Bienvenido a SIGEPED - ESIAD Proyectos.\nGestiona tus pedidos de corte láser, ploteo, impresión 3D y maquetas desde nuestra plataforma.\nResponde *1* para confirmar que recibiste este mensaje.`;
+    const message = `Hola ${firstName}. Bienvenido a SIGEPED - ESIAD Proyectos. Gestiona tus pedidos de corte laser, ploteo, impresion 3D y maquetas desde nuestra plataforma.`;
 
     await this.sendWhatsApp(phone, message);
   }

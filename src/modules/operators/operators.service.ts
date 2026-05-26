@@ -51,6 +51,7 @@ const operatorDetailOrderInclude = Prisma.validator<Prisma.OrderDefaultArgs>()({
 
 type OperatorQueueOrder = Prisma.OrderGetPayload<typeof operatorQueueOrderInclude>;
 type OperatorDetailOrder = Prisma.OrderGetPayload<typeof operatorDetailOrderInclude>;
+type OperatorReviewAction = 'APPROVE' | 'RETURN_TO_CLIENT' | 'REJECT';
 
 function mapPricingModelToSpecialty(pricingModel: PricingModel): Specialty {
   switch (pricingModel) {
@@ -86,8 +87,18 @@ function buildSafeOperatorOrder(order: OperatorQueueOrder | OperatorDetailOrder)
     material_id: order.material_id,
     status: order.status,
     payment_condition: order.payment_condition,
+    estimated_price: order.estimated_price,
+    final_price: order.final_price,
+    advance_amount: order.advance_amount,
     budget_expires_at: order.budget_expires_at,
     estimated_delivery_at: order.estimated_delivery_at,
+    client_review_notes: order.client_review_notes,
+    client_reviewed_at: order.client_reviewed_at,
+    operator_reviewed_at: order.operator_reviewed_at,
+    operator_price_adjustment_reason: order.operator_price_adjustment_reason,
+    production_time_estimate: order.production_time_estimate,
+    production_started_at: order.production_started_at,
+    production_ready_at: order.production_ready_at,
     created_at: order.created_at,
     updated_at: order.updated_at,
     notes: order.notes,
@@ -138,7 +149,7 @@ export class OperatorsService {
       where: {
         operator_id: operator.id,
         status: {
-          in: ['PENDING_PAYMENT', 'IN_PROGRESS', 'READY']
+          in: ['BUDGETED', 'CLIENT_REVIEW_PENDING', 'OPERATOR_REVIEW_PENDING', 'PENDING_PAYMENT', 'IN_PROGRESS', 'READY']
         },
         service_type: {
           pricing_model: {
@@ -243,15 +254,22 @@ export class OperatorsService {
 
         return tx.order.update({
           where: { id: orderId },
-          data: { status: 'IN_PROGRESS' }
+          data: {
+            status: 'IN_PROGRESS',
+            production_started_at: new Date()
+          }
         });
       });
 
       await notificationsService.send(updatedOrder.id, 'PAYMENT_CONFIRMED');
+      await notificationsService.send(updatedOrder.id, 'ORDER_IN_PRODUCTION');
     } else {
       updatedOrder = await prisma.order.update({
         where: { id: orderId },
-        data: { status: 'READY' }
+        data: {
+          status: 'READY',
+          production_ready_at: new Date()
+        }
       });
 
       await notificationsService.send(updatedOrder.id, 'ORDER_READY');
@@ -293,6 +311,201 @@ export class OperatorsService {
     return {
       id: updatedOrder.id,
       operator_notes: updatedOrder.operator_notes,
+      updated_at: updatedOrder.updated_at
+    };
+  }
+
+  async reviewOrder(userId: string, orderId: string, action: string, notes?: string) {
+    const operator = await prisma.operator.findUnique({
+      where: { user_id: userId }
+    });
+
+    if (!operator) {
+      throw new Error('Operario no encontrado');
+    }
+
+    const normalizedAction = action?.toUpperCase() as OperatorReviewAction;
+    if (!['APPROVE', 'RETURN_TO_CLIENT', 'REJECT'].includes(normalizedAction)) {
+      throw new Error('AcciÃ³n de revisiÃ³n invÃ¡lida');
+    }
+
+    const order = await prisma.order.findFirst({
+      where: { id: orderId }
+    });
+
+    if (!order) {
+      throw new Error('Pedido no encontrado');
+    }
+
+    if (order.operator_id !== operator.id) {
+      throw new Error('No puedes revisar un pedido que no te fue asignado');
+    }
+
+    if (normalizedAction === 'APPROVE') {
+      if (order.status !== 'OPERATOR_REVIEW_PENDING') {
+        throw new Error(`Solo se puede aprobar un pedido en estado OPERATOR_REVIEW_PENDING. Estado actual: ${order.status}`);
+      }
+
+      const now = new Date();
+      const nextStatus = order.payment_condition === 'CASH_ON_DELIVERY' ? 'IN_PROGRESS' : 'PENDING_PAYMENT';
+      const updatedOrder = await prisma.order.update({
+        where: { id: orderId },
+        data: {
+          status: nextStatus,
+          final_price: order.final_price ?? order.estimated_price,
+          operator_notes: notes?.trim() || order.operator_notes,
+          operator_reviewed_at: now,
+          production_started_at: nextStatus === 'IN_PROGRESS' ? now : order.production_started_at
+        }
+      });
+
+      await notificationsService.send(updatedOrder.id, 'OPERATOR_REVIEW_APPROVED');
+      if (updatedOrder.status === 'IN_PROGRESS') {
+        await notificationsService.send(updatedOrder.id, 'ORDER_IN_PRODUCTION');
+      }
+
+      return {
+        id: updatedOrder.id,
+        status: updatedOrder.status,
+        final_price: updatedOrder.final_price,
+        operator_reviewed_at: updatedOrder.operator_reviewed_at,
+        updated_at: updatedOrder.updated_at
+      };
+    }
+
+    if (!notes || notes.trim() === '') {
+      throw new Error('Las notas de revisiÃ³n son requeridas');
+    }
+
+    const updatedOrder = await prisma.order.update({
+      where: { id: orderId },
+      data: {
+        status: normalizedAction === 'RETURN_TO_CLIENT' ? 'CLIENT_REVIEW_PENDING' : 'CANCELLED',
+        operator_notes: notes.trim(),
+        operator_reviewed_at: new Date()
+      }
+    });
+
+    return {
+      id: updatedOrder.id,
+      status: updatedOrder.status,
+      operator_notes: updatedOrder.operator_notes,
+      operator_reviewed_at: updatedOrder.operator_reviewed_at,
+      updated_at: updatedOrder.updated_at
+    };
+  }
+
+  async updateOrderPrice(userId: string, orderId: string, finalPrice: number, reason: string) {
+    const operator = await prisma.operator.findUnique({
+      where: { user_id: userId }
+    });
+
+    if (!operator) {
+      throw new Error('Operario no encontrado');
+    }
+
+    if (!Number.isFinite(finalPrice) || finalPrice <= 0) {
+      throw new Error('El precio final debe ser mayor a cero');
+    }
+
+    if (!reason || reason.trim() === '') {
+      throw new Error('El motivo del ajuste de precio es requerido');
+    }
+
+    const order = await prisma.order.findFirst({
+      where: { id: orderId }
+    });
+
+    if (!order) {
+      throw new Error('Pedido no encontrado');
+    }
+
+    if (order.operator_id !== operator.id) {
+      throw new Error('No puedes ajustar un pedido que no te fue asignado');
+    }
+
+    if (order.status !== 'OPERATOR_REVIEW_PENDING') {
+      throw new Error(`Solo se puede ajustar el precio de un pedido en estado OPERATOR_REVIEW_PENDING. Estado actual: ${order.status}`);
+    }
+
+    const finalPriceDecimal = new Prisma.Decimal(finalPrice);
+    const budgetExpiresAt = new Date();
+    budgetExpiresAt.setHours(budgetExpiresAt.getHours() + 24);
+
+    const updatedOrder = await prisma.order.update({
+      where: { id: orderId },
+      data: {
+        status: 'CLIENT_REVIEW_PENDING',
+        final_price: finalPriceDecimal,
+        advance_amount: order.payment_condition === 'ADVANCE_50' ? finalPriceDecimal.mul(0.5) : null,
+        budget_expires_at: budgetExpiresAt,
+        operator_price_adjustment_reason: reason.trim(),
+        operator_reviewed_at: new Date()
+      }
+    });
+
+    await notificationsService.send(updatedOrder.id, 'BUDGET_ADJUSTED');
+
+    return {
+      id: updatedOrder.id,
+      status: updatedOrder.status,
+      estimated_price: updatedOrder.estimated_price,
+      final_price: updatedOrder.final_price,
+      advance_amount: updatedOrder.advance_amount,
+      operator_price_adjustment_reason: updatedOrder.operator_price_adjustment_reason,
+      updated_at: updatedOrder.updated_at
+    };
+  }
+
+  async updateProductionTime(userId: string, orderId: string, productionTimeEstimate: string, estimatedDeliveryAt?: string) {
+    const operator = await prisma.operator.findUnique({
+      where: { user_id: userId }
+    });
+
+    if (!operator) {
+      throw new Error('Operario no encontrado');
+    }
+
+    if (!productionTimeEstimate || productionTimeEstimate.trim() === '') {
+      throw new Error('El tiempo estimado de producciÃ³n es requerido');
+    }
+
+    const order = await prisma.order.findFirst({
+      where: { id: orderId }
+    });
+
+    if (!order) {
+      throw new Error('Pedido no encontrado');
+    }
+
+    if (order.operator_id !== operator.id) {
+      throw new Error('No puedes actualizar un pedido que no te fue asignado');
+    }
+
+    if (!['OPERATOR_REVIEW_PENDING', 'PENDING_PAYMENT', 'IN_PROGRESS'].includes(order.status)) {
+      throw new Error(`No se puede registrar tiempo de producciÃ³n para un pedido en estado ${order.status}`);
+    }
+
+    let parsedEstimatedDeliveryAt: Date | undefined;
+    if (estimatedDeliveryAt) {
+      parsedEstimatedDeliveryAt = new Date(estimatedDeliveryAt);
+      if (Number.isNaN(parsedEstimatedDeliveryAt.getTime())) {
+        throw new Error('estimated_delivery_at invÃ¡lido');
+      }
+    }
+
+    const updatedOrder = await prisma.order.update({
+      where: { id: orderId },
+      data: {
+        production_time_estimate: productionTimeEstimate.trim(),
+        estimated_delivery_at: parsedEstimatedDeliveryAt
+      }
+    });
+
+    return {
+      id: updatedOrder.id,
+      production_time_estimate: updatedOrder.production_time_estimate,
+      estimated_delivery_at: updatedOrder.estimated_delivery_at,
       updated_at: updatedOrder.updated_at
     };
   }

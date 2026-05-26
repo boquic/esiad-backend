@@ -40,6 +40,27 @@ router.patch(
   operatorsController.updateOrderStatus
 );
 
+router.post(
+  '/orders/:id/review',
+  authMiddleware,
+  requireRole(['OPERATOR']),
+  operatorsController.reviewOrder
+);
+
+router.patch(
+  '/orders/:id/price',
+  authMiddleware,
+  requireRole(['OPERATOR']),
+  operatorsController.updateOrderPrice
+);
+
+router.patch(
+  '/orders/:id/production-time',
+  authMiddleware,
+  requireRole(['OPERATOR']),
+  operatorsController.updateProductionTime
+);
+
 router.patch(
   '/orders/:id/notes',
   authMiddleware,

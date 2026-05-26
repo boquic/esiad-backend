@@ -134,6 +134,129 @@ export class OperatorsController {
     }
   }
 
+  async reviewOrder(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const userId = (req as AuthenticatedOperatorRequest).user?.id;
+      const id = req.params.id as string;
+      const { action, notes } = req.body;
+
+      if (!userId) {
+        res.status(401).json({ error: true, message: 'Acceso no autorizado, token no proporcionado' });
+        return;
+      }
+
+      if (!action) {
+        res.status(400).json({ error: true, message: 'El campo action es requerido' });
+        return;
+      }
+
+      const order = await operatorsService.reviewOrder(userId, id, action, notes);
+      res.status(200).json({ data: order });
+    } catch (error) {
+      if (error instanceof Error) {
+        if (error.message.includes('no te fue asignado')) {
+          res.status(403).json({ error: true, message: error.message });
+          return;
+        }
+        if (
+          error.message.includes('invÃ¡lida') ||
+          error.message.includes('Solo se puede aprobar') ||
+          error.message.includes('requeridas')
+        ) {
+          res.status(400).json({ error: true, message: error.message });
+          return;
+        }
+        if (error.message === 'Operario no encontrado' || error.message === 'Pedido no encontrado') {
+          res.status(404).json({ error: true, message: error.message });
+          return;
+        }
+      }
+      next(error);
+    }
+  }
+
+  async updateOrderPrice(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const userId = (req as AuthenticatedOperatorRequest).user?.id;
+      const id = req.params.id as string;
+      const { final_price, reason } = req.body;
+
+      if (!userId) {
+        res.status(401).json({ error: true, message: 'Acceso no autorizado, token no proporcionado' });
+        return;
+      }
+
+      if (final_price === undefined) {
+        res.status(400).json({ error: true, message: 'El campo final_price es requerido' });
+        return;
+      }
+
+      const order = await operatorsService.updateOrderPrice(userId, id, Number(final_price), reason);
+      res.status(200).json({ data: order });
+    } catch (error) {
+      if (error instanceof Error) {
+        if (error.message.includes('no te fue asignado')) {
+          res.status(403).json({ error: true, message: error.message });
+          return;
+        }
+        if (
+          error.message.includes('mayor a cero') ||
+          error.message.includes('requerido') ||
+          error.message.includes('Solo se puede ajustar')
+        ) {
+          res.status(400).json({ error: true, message: error.message });
+          return;
+        }
+        if (error.message === 'Operario no encontrado' || error.message === 'Pedido no encontrado') {
+          res.status(404).json({ error: true, message: error.message });
+          return;
+        }
+      }
+      next(error);
+    }
+  }
+
+  async updateProductionTime(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const userId = (req as AuthenticatedOperatorRequest).user?.id;
+      const id = req.params.id as string;
+      const { production_time_estimate, estimated_delivery_at } = req.body;
+
+      if (!userId) {
+        res.status(401).json({ error: true, message: 'Acceso no autorizado, token no proporcionado' });
+        return;
+      }
+
+      const order = await operatorsService.updateProductionTime(
+        userId,
+        id,
+        production_time_estimate,
+        estimated_delivery_at
+      );
+      res.status(200).json({ data: order });
+    } catch (error) {
+      if (error instanceof Error) {
+        if (error.message.includes('no te fue asignado')) {
+          res.status(403).json({ error: true, message: error.message });
+          return;
+        }
+        if (
+          error.message.includes('requerido') ||
+          error.message.includes('No se puede registrar') ||
+          error.message.includes('invÃ¡lido')
+        ) {
+          res.status(400).json({ error: true, message: error.message });
+          return;
+        }
+        if (error.message === 'Operario no encontrado' || error.message === 'Pedido no encontrado') {
+          res.status(404).json({ error: true, message: error.message });
+          return;
+        }
+      }
+      next(error);
+    }
+  }
+
   async downloadOrderFile(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const userId = (req as AuthenticatedOperatorRequest).user?.id;

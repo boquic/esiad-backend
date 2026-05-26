@@ -127,6 +127,48 @@ export class OrdersController {
     }
   }
 
+  async confirmReview(req: Request, res: Response): Promise<any> {
+    try {
+      const clientId = req.user.id as string;
+      const id = req.params.id as string;
+      const { notes } = req.body;
+
+      const order = await ordersService.confirmReview(id, clientId, notes);
+
+      return res.status(200).json({ data: order });
+    } catch (error: any) {
+      if (error.message === 'Pedido no encontrado') {
+        return res.status(404).json({ error: true, message: error.message });
+      }
+      if (error.message.includes('No se puede confirmar') || error.message.includes('expirado')) {
+        return res.status(400).json({ error: true, message: error.message });
+      }
+      console.error('Error confirming order review:', error);
+      return res.status(500).json({ error: true, message: 'Error interno del servidor' });
+    }
+  }
+
+  async addObservation(req: Request, res: Response): Promise<any> {
+    try {
+      const clientId = req.user.id as string;
+      const id = req.params.id as string;
+      const { observation, notes } = req.body;
+
+      const order = await ordersService.addObservation(id, clientId, observation ?? notes);
+
+      return res.status(200).json({ data: order });
+    } catch (error: any) {
+      if (error.message === 'Pedido no encontrado') {
+        return res.status(404).json({ error: true, message: error.message });
+      }
+      if (error.message.includes('requerida') || error.message.includes('No se pueden registrar')) {
+        return res.status(400).json({ error: true, message: error.message });
+      }
+      console.error('Error adding order observation:', error);
+      return res.status(500).json({ error: true, message: 'Error interno del servidor' });
+    }
+  }
+
   async confirmPickup(req: Request, res: Response): Promise<any> {
     try {
       const clientId = req.user.id as string;

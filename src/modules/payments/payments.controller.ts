@@ -43,7 +43,7 @@ export class PaymentsController {
 
         if (
           error.message === 'La captura del pago es requerida' ||
-          error.message === 'Debes confirmar el presupuesto antes de subir la captura del pago' ||
+          error.message === 'El pedido debe completar la revisiÃ³n antes de subir la captura del pago' ||
           error.message === 'Los pedidos con contraentrega no usan POST /api/payments' ||
           error.message.includes('No se puede registrar un pago para un pedido en estado') ||
           error.message.includes('Formato de archivo no permitido')

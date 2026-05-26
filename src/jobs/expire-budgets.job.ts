@@ -5,7 +5,9 @@ const ONE_HOUR_IN_MS = 60 * 60 * 1000;
 export async function expireBudgets(): Promise<number> {
   const result = await prisma.order.updateMany({
     where: {
-      status: 'BUDGETED',
+      status: {
+        in: ['BUDGETED', 'CLIENT_REVIEW_PENDING'],
+      },
       budget_expires_at: {
         lt: new Date(),
       },

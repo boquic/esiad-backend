@@ -28,6 +28,8 @@ enum PricingModel {
 
 enum OrderStatus {
   BUDGETED
+  CLIENT_REVIEW_PENDING
+  OPERATOR_REVIEW_PENDING
   PENDING_PAYMENT
   IN_PROGRESS
   READY
@@ -60,9 +62,15 @@ enum FileType {
 
 enum TriggerEvent {
   BUDGET_READY
+  CLIENT_OBSERVATION_RECEIVED
+  BUDGET_ADJUSTED
+  OPERATOR_REVIEW_APPROVED
   PAYMENT_CONFIRMED
+  ORDER_IN_PRODUCTION
+  ORDER_DELAYED
   ORDER_READY
   PICKUP_REMINDER_48H
+  ORDER_DELIVERED
 }
 
 enum DeliveryStatus {
@@ -151,10 +159,18 @@ model Order {
   status            OrderStatus      @default(BUDGETED)
   payment_condition PaymentCondition
   estimated_price   Decimal          @db.Decimal(10, 2)
+  final_price       Decimal?         @db.Decimal(10, 2)
   advance_amount    Decimal?         @db.Decimal(10, 2)
   budget_expires_at DateTime
   notes             String?
+  client_review_notes String?
+  client_reviewed_at DateTime?
   operator_notes    String?
+  operator_reviewed_at DateTime?
+  operator_price_adjustment_reason String?
+  production_time_estimate String?
+  production_started_at DateTime?
+  production_ready_at DateTime?
   estimated_delivery_at DateTime?
   created_at        DateTime         @default(now())
   updated_at        DateTime         @updatedAt

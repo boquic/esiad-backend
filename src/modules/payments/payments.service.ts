@@ -11,8 +11,12 @@ export class PaymentsService {
       throw new Error('Pedido no encontrado');
     }
 
-    if (order.status === 'BUDGETED') {
-      throw new Error('Debes confirmar el presupuesto antes de subir la captura del pago');
+    if (
+      order.status === 'BUDGETED' ||
+      order.status === 'CLIENT_REVIEW_PENDING' ||
+      order.status === 'OPERATOR_REVIEW_PENDING'
+    ) {
+      throw new Error('El pedido debe completar la revisiÃ³n antes de subir la captura del pago');
     }
 
     if (order.status !== 'PENDING_PAYMENT') {
@@ -45,7 +49,7 @@ export class PaymentsService {
       new Prisma.Decimal(0)
     );
 
-    const requiredAmount = order.advance_amount ?? order.estimated_price;
+    const requiredAmount = order.advance_amount ?? order.final_price ?? order.estimated_price;
 
     if (approvedAmount.greaterThanOrEqualTo(requiredAmount)) {
       throw new Error('El pedido ya cuenta con un pago aprobado suficiente');
@@ -54,7 +58,7 @@ export class PaymentsService {
     const payment = await prisma.payment.create({
       data: {
         order_id: orderId,
-        amount: order.advance_amount ?? order.estimated_price,
+        amount: order.advance_amount ?? order.final_price ?? order.estimated_price,
         payment_type: 'ADVANCE',
         capture_url: `/uploads/${file.filename}`,
         status: 'PENDING'

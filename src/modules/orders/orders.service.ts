@@ -4,6 +4,29 @@ import path from 'path';
 import { ENV } from '../../config/env';
 import { notificationsService } from '../notifications/notifications.service';
 
+const orderWithOperatorInclude = {
+  service_type: true,
+  material: true,
+  operator: {
+    select: {
+      id: true,
+      user: {
+        select: {
+          id: true,
+          first_name: true,
+          last_name: true,
+          dni: true,
+          phone: true
+        }
+      }
+    }
+  }
+} as const;
+
+function calculateAdvanceAmount(paymentCondition: 'ADVANCE_50' | 'CASH_ON_DELIVERY', price: Prisma.Decimal) {
+  return paymentCondition === 'ADVANCE_50' ? price.mul(0.5) : null;
+}
+
 function calculateEstimatedDeliveryAt(pricingModel: PricingModel): Date {
   const estimatedDeliveryAt = new Date();
 
@@ -109,7 +132,7 @@ export class OrdersService {
     const payment_condition = user?.is_frequent ? 'CASH_ON_DELIVERY' : 'ADVANCE_50';
     
     // 5. Calcular monto de adelanto si aplica
-    const advance_amount = payment_condition === 'ADVANCE_50' ? estimatedPrice.mul(0.5) : null;
+    const advance_amount = calculateAdvanceAmount(payment_condition, estimatedPrice);
 
     // 6. Fijar expiración del presupuesto (ahora + 24h)
     const budget_expires_at = new Date();
@@ -148,15 +171,13 @@ export class OrdersService {
         status: 'BUDGETED',
         payment_condition,
         estimated_price: estimatedPrice,
+        final_price: estimatedPrice,
         advance_amount,
         budget_expires_at,
         estimated_delivery_at,
         notes,
       },
-      include: {
-        service_type: true,
-        material: true,
-      },
+      include: orderWithOperatorInclude,
     });
 
     await notificationsService.send(order.id, 'BUDGET_READY');
@@ -168,7 +189,9 @@ export class OrdersService {
     await prisma.order.updateMany({
       where: {
         client_id: clientId,
-        status: 'BUDGETED',
+        status: {
+          in: ['BUDGETED', 'CLIENT_REVIEW_PENDING'],
+        },
         budget_expires_at: {
           lt: new Date(),
         },
@@ -182,10 +205,7 @@ export class OrdersService {
       where: {
         client_id: clientId,
       },
-      include: {
-        service_type: true,
-        material: true,
-      },
+      include: orderWithOperatorInclude,
       orderBy: {
         created_at: 'desc',
       },
@@ -201,8 +221,7 @@ export class OrdersService {
         client_id: clientId,
       },
       include: {
-        service_type: true,
-        material: true,
+        ...orderWithOperatorInclude,
         files: true,
         payments: true,
       },
@@ -237,7 +256,7 @@ export class OrdersService {
     });
   }
 
-  async confirmBudget(orderId: string, clientId: string) {
+  async confirmReview(orderId: string, clientId: string, reviewNotes?: string) {
     const order = await prisma.order.findFirst({
       where: {
         id: orderId,
@@ -249,8 +268,8 @@ export class OrdersService {
       throw new Error('Pedido no encontrado');
     }
 
-    if (order.status !== 'BUDGETED') {
-      throw new Error(`No se puede confirmar un pedido en estado ${order.status}`);
+    if (order.status !== 'BUDGETED' && order.status !== 'CLIENT_REVIEW_PENDING') {
+      throw new Error(`No se puede confirmar la revisiÃ³n de un pedido en estado ${order.status}`);
     }
 
     if (order.budget_expires_at < new Date()) {
@@ -262,14 +281,58 @@ export class OrdersService {
       throw new Error('El presupuesto ha expirado');
     }
 
-    const nextStatus = order.payment_condition === 'CASH_ON_DELIVERY'
-      ? 'IN_PROGRESS'
-      : 'PENDING_PAYMENT';
-
     return await prisma.order.update({
       where: { id: orderId },
-      data: { status: nextStatus }
+      data: {
+        status: 'OPERATOR_REVIEW_PENDING',
+        client_review_notes: reviewNotes?.trim() || order.client_review_notes,
+        client_reviewed_at: new Date()
+      },
+      include: orderWithOperatorInclude
     });
+  }
+
+  async confirmBudget(orderId: string, clientId: string) {
+    return this.confirmReview(orderId, clientId);
+  }
+
+  async addObservation(orderId: string, clientId: string, observation: string) {
+    if (!observation || observation.trim() === '') {
+      throw new Error('La observaciÃ³n es requerida');
+    }
+
+    const order = await prisma.order.findFirst({
+      where: {
+        id: orderId,
+        client_id: clientId,
+      }
+    });
+
+    if (!order) {
+      throw new Error('Pedido no encontrado');
+    }
+
+    if (
+      order.status !== 'BUDGETED' &&
+      order.status !== 'CLIENT_REVIEW_PENDING' &&
+      order.status !== 'OPERATOR_REVIEW_PENDING'
+    ) {
+      throw new Error(`No se pueden registrar observaciones para un pedido en estado ${order.status}`);
+    }
+
+    const updatedOrder = await prisma.order.update({
+      where: { id: orderId },
+      data: {
+        status: 'CLIENT_REVIEW_PENDING',
+        client_review_notes: observation.trim(),
+        client_reviewed_at: new Date()
+      },
+      include: orderWithOperatorInclude
+    });
+
+    await notificationsService.send(updatedOrder.id, 'CLIENT_OBSERVATION_RECEIVED');
+
+    return updatedOrder;
   }
 
   async confirmPickup(orderId: string, clientId: string) {
@@ -313,6 +376,8 @@ export class OrdersService {
 
       return updatedOrder;
     });
+
+    await notificationsService.send(updated.id, 'ORDER_DELIVERED');
 
     return updated;
   }

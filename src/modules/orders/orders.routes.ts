@@ -47,6 +47,18 @@ router.post('/:id/confirm',
 );
 
 // Confirmar recogida por parte del cliente (doble validación)
+router.post('/:id/confirm-review',
+  authMiddleware,
+  requireRole(['CLIENT']),
+  ordersController.confirmReview.bind(ordersController)
+);
+
+router.post('/:id/observations',
+  authMiddleware,
+  requireRole(['CLIENT']),
+  ordersController.addObservation.bind(ordersController)
+);
+
 router.post('/:id/confirm-pickup',
   authMiddleware,
   requireRole(['CLIENT']),

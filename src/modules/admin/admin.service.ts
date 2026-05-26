@@ -188,13 +188,17 @@ export class AdminService {
 
       await tx.order.update({
         where: { id: payment.order_id },
-        data: { status: 'IN_PROGRESS' },
+        data: {
+          status: 'IN_PROGRESS',
+          production_started_at: new Date(),
+        },
       });
 
       return approvedPayment;
     });
 
     await notificationsService.send(payment.order_id, 'PAYMENT_CONFIRMED');
+    await notificationsService.send(payment.order_id, 'ORDER_IN_PRODUCTION');
 
     return approvedPayment;
   }

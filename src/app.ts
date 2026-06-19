@@ -16,6 +16,7 @@ import { openApiSpec } from './docs/openapi';
 import { startExpireBudgetsJob } from './jobs/expire-budgets.job';
 import { startPickupReminderJob } from './jobs/pickup-reminder.job';
 import { captureRequestTime, requestLogger, errorLogger } from './middlewares/logging.middleware';
+import { errorHandlerMiddleware } from './middlewares/error.middleware';
 
 const app = express();
 
@@ -53,8 +54,9 @@ app.get('/health', async (req: Request, res: Response) => {
   }
 });
 
-// Middleware de error logging (debe estar al final)
+// Middleware de error logging y handling (debe estar al final)
 app.use(errorLogger);
+app.use(errorHandlerMiddleware);
 
 const startServer = async () => {
   await connectDatabase();

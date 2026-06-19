@@ -42,6 +42,7 @@
     "@types/swagger-ui-express": "^4.1.8",
     "dotenv": "^17.4.2",
     "jest": "^30.4.2",
+    "jest-mock-extended": "^4.0.1",
     "prisma": "^7.7.0",
     "supertest": "^7.2.2",
     "ts-jest": "^29.4.11",

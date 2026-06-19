@@ -1,8 +1,8 @@
-import { prisma } from '../../config/database';
-import { FileType, Prisma, PricingModel, Specialty } from '@prisma/client';
+import { Prisma, PrismaClient, FileType, PricingModel, Specialty } from '@prisma/client';
 import path from 'path';
 import { ENV } from '../../config/env';
-import { notificationsService } from '../notifications/notifications.service';
+import { NotificationsService } from '../notifications/notifications.service';
+import { BadRequestError, NotFoundError, ConflictError, ForbiddenError } from '../../utils/errors';
 
 const orderWithOperatorInclude = {
   service_type: true,
@@ -26,6 +26,10 @@ const orderWithOperatorInclude = {
 import { calculateAdvanceAmount, calculateEstimatedDeliveryAt, mapPricingModelToSpecialty } from '../../utils/order.utils';
 
 export class OrdersService {
+  constructor(
+    private prisma: PrismaClient,
+    private notificationsService: NotificationsService
+  ) {}
   async create(clientId: string, data: {
     service_type_id: string;
     material_id: string;
@@ -37,7 +41,7 @@ export class OrdersService {
     const { service_type_id, material_id, quantity, area, volume, notes } = data;
 
     // 1. Validar RN#6: Un cliente no puede tener dos pedidos del mismo tipo de servicio en estado 'IN_PROGRESS' simultáneamente
-    const activeOrder = await prisma.order.findFirst({
+    const activeOrder = await this.prisma.order.findFirst({
       where: {
         client_id: clientId,
         service_type_id,
@@ -46,24 +50,24 @@ export class OrdersService {
     });
 
     if (activeOrder) {
-      throw new Error('RN6: Ya tienes un pedido de este tipo en progreso');
+      throw new ConflictError('RN6: Ya tienes un pedido de este tipo en progreso');
     }
 
     // 2. Obtener Servicio y Material
-    const serviceType = await prisma.serviceType.findUnique({
+    const serviceType = await this.prisma.serviceType.findUnique({
       where: { id: service_type_id },
     });
 
     if (!serviceType || !serviceType.is_active) {
-      throw new Error('Servicio no encontrado o inactivo');
+      throw new NotFoundError('Servicio no encontrado o inactivo');
     }
 
-    const material = await prisma.material.findUnique({
+    const material = await this.prisma.material.findUnique({
       where: { id: material_id },
     });
 
     if (!material || !material.is_active || material.service_type_id !== service_type_id) {
-      throw new Error('Material no encontrado, inactivo o no pertenece al servicio');
+      throw new BadRequestError('Material no encontrado, inactivo o no pertenece al servicio');
     }
 
     // 3. Calcular Precio Estimado según PricingModel
@@ -74,23 +78,23 @@ export class OrdersService {
         estimatedPrice = material.unit_price;
         break;
       case 'PER_M2':
-        if (!area) throw new Error('El área es requerida para este servicio');
+        if (!area) throw new BadRequestError('El área es requerida para este servicio');
         estimatedPrice = material.unit_price.mul(area);
         break;
       case 'PER_UNIT':
-        if (!quantity) throw new Error('La cantidad es requerida para este servicio');
+        if (!quantity) throw new BadRequestError('La cantidad es requerida para este servicio');
         estimatedPrice = material.unit_price.mul(quantity);
         break;
       case 'PER_VOLUME':
-        if (!volume) throw new Error('El volumen es requerido para este servicio');
+        if (!volume) throw new BadRequestError('El volumen es requerido para este servicio');
         estimatedPrice = material.unit_price.mul(volume);
         break;
       default:
-        throw new Error('Modelo de precios no soportado');
+        throw new BadRequestError('Modelo de precios no soportado');
     }
 
     // 4. Determinar Condición de Pago según is_frequent
-    const user = await prisma.user.findUnique({
+    const user = await this.prisma.user.findUnique({
       where: { id: clientId },
       select: { is_frequent: true },
     });
@@ -106,7 +110,7 @@ export class OrdersService {
     const estimated_delivery_at = calculateEstimatedDeliveryAt(serviceType.pricing_model);
     const requiredSpecialty = mapPricingModelToSpecialty(serviceType.pricing_model);
 
-    const operator = await prisma.operator.findFirst({
+    const operator = await this.prisma.operator.findFirst({
       where: {
         is_active: true,
         specialties: {
@@ -124,11 +128,11 @@ export class OrdersService {
     });
 
     if (!operator) {
-      throw new Error(`No hay operarios disponibles con la especialidad ${requiredSpecialty}`);
+      throw new ConflictError(`No hay operarios disponibles con la especialidad ${requiredSpecialty}`);
     }
 
     // 7. Crear el pedido
-    const order = await prisma.order.create({
+    const order = await this.prisma.order.create({
       data: {
         client_id: clientId,
         operator_id: operator.id,
@@ -146,13 +150,13 @@ export class OrdersService {
       include: orderWithOperatorInclude,
     });
 
-    await notificationsService.send(order.id, 'BUDGET_READY');
+    await this.notificationsService.send(order.id, 'BUDGET_READY');
 
     return order;
   }
 
   async findByClientId(clientId: string) {
-    await prisma.order.updateMany({
+    await this.prisma.order.updateMany({
       where: {
         client_id: clientId,
         status: {
@@ -167,7 +171,7 @@ export class OrdersService {
       },
     });
 
-    const orders = await prisma.order.findMany({
+    const orders = await this.prisma.order.findMany({
       where: {
         client_id: clientId,
       },
@@ -181,7 +185,7 @@ export class OrdersService {
   }
 
   async findById(id: string, clientId: string) {
-    const order = await prisma.order.findFirst({
+    const order = await this.prisma.order.findFirst({
       where: {
         id,
         client_id: clientId,
@@ -203,7 +207,7 @@ export class OrdersService {
 
   async addFile(orderId: string, clientId: string, fileData: { file_url: string; file_type: FileType }) {
     // Verificar que el pedido existe y pertenece al cliente
-    const order = await prisma.order.findFirst({
+    const order = await this.prisma.order.findFirst({
       where: {
         id: orderId,
         client_id: clientId
@@ -211,10 +215,10 @@ export class OrdersService {
     });
 
     if (!order) {
-      throw new Error('Pedido no encontrado o no tienes permiso');
+      throw new NotFoundError('Pedido no encontrado');
     }
 
-    return await prisma.orderFile.create({
+    return await this.prisma.orderFile.create({
       data: {
         order_id: orderId,
         ...fileData
@@ -223,7 +227,7 @@ export class OrdersService {
   }
 
   async confirmReview(orderId: string, clientId: string, reviewNotes?: string) {
-    const order = await prisma.order.findFirst({
+    const order = await this.prisma.order.findFirst({
       where: {
         id: orderId,
         client_id: clientId,
@@ -235,19 +239,19 @@ export class OrdersService {
     }
 
     if (order.status !== 'BUDGETED' && order.status !== 'CLIENT_REVIEW_PENDING') {
-      throw new Error(`No se puede confirmar la revisiÃ³n de un pedido en estado ${order.status}`);
+      throw new BadRequestError(`No se puede confirmar la revisión de un pedido en estado ${order.status}`);
     }
 
     if (order.budget_expires_at < new Date()) {
-      await prisma.order.update({
+      await this.prisma.order.update({
         where: { id: orderId },
         data: { status: 'EXPIRED' }
       });
 
-      throw new Error('El presupuesto ha expirado');
+      throw new BadRequestError('El presupuesto ha expirado');
     }
 
-    return await prisma.order.update({
+    return await this.prisma.order.update({
       where: { id: orderId },
       data: {
         status: 'OPERATOR_REVIEW_PENDING',
@@ -264,10 +268,10 @@ export class OrdersService {
 
   async addObservation(orderId: string, clientId: string, observation: string) {
     if (!observation || observation.trim() === '') {
-      throw new Error('La observaciÃ³n es requerida');
+      throw new BadRequestError('La observación es requerida');
     }
 
-    const order = await prisma.order.findFirst({
+    const order = await this.prisma.order.findFirst({
       where: {
         id: orderId,
         client_id: clientId,
@@ -283,10 +287,10 @@ export class OrdersService {
       order.status !== 'CLIENT_REVIEW_PENDING' &&
       order.status !== 'OPERATOR_REVIEW_PENDING'
     ) {
-      throw new Error(`No se pueden registrar observaciones para un pedido en estado ${order.status}`);
+      throw new BadRequestError(`No se pueden registrar observaciones para un pedido en estado ${order.status}`);
     }
 
-    const updatedOrder = await prisma.order.update({
+    const updatedOrder = await this.prisma.order.update({
       where: { id: orderId },
       data: {
         status: 'CLIENT_REVIEW_PENDING',
@@ -296,13 +300,13 @@ export class OrdersService {
       include: orderWithOperatorInclude
     });
 
-    await notificationsService.send(updatedOrder.id, 'CLIENT_OBSERVATION_RECEIVED');
+    await this.notificationsService.send(updatedOrder.id, 'CLIENT_OBSERVATION_RECEIVED');
 
     return updatedOrder;
   }
 
   async confirmPickup(orderId: string, clientId: string) {
-    const order = await prisma.order.findFirst({
+    const order = await this.prisma.order.findFirst({
       where: {
         id: orderId,
         client_id: clientId,
@@ -314,11 +318,11 @@ export class OrdersService {
     }
 
     if (order.status !== 'READY') {
-      throw new Error(`No se puede confirmar la recogida de un pedido en estado ${order.status}`);
+      throw new BadRequestError(`No se puede confirmar la recogida de un pedido en estado ${order.status}`);
     }
 
     // Marcar como DELIVERED y actualizar contador de pedidos completados del cliente
-    const updated = await prisma.$transaction(async (tx) => {
+    const updated = await this.prisma.$transaction(async (tx) => {
       const updatedOrder = await tx.order.update({
         where: { id: orderId },
         data: { status: 'DELIVERED' }
@@ -343,13 +347,13 @@ export class OrdersService {
       return updatedOrder;
     });
 
-    await notificationsService.send(updated.id, 'ORDER_DELIVERED');
+    await this.notificationsService.send(updated.id, 'ORDER_DELIVERED');
 
     return updated;
   }
 
   async getDownloadableFile(clientId: string, orderId: string, fileId: string) {
-    const order = await prisma.order.findFirst({
+    const order = await this.prisma.order.findFirst({
       where: { id: orderId }
     });
 
@@ -361,7 +365,7 @@ export class OrdersService {
       throw new Error('No tienes permiso para acceder a este archivo');
     }
 
-    const file = await prisma.orderFile.findFirst({
+    const file = await this.prisma.orderFile.findFirst({
       where: {
         id: fileId,
         order_id: orderId
@@ -388,7 +392,7 @@ export class OrdersService {
   }
 
   async getPrimaryDownloadableFile(clientId: string, orderId: string) {
-    const order = await prisma.order.findFirst({
+    const order = await this.prisma.order.findFirst({
       where: { id: orderId }
     });
 
@@ -400,7 +404,7 @@ export class OrdersService {
       throw new Error('No tienes permiso para acceder a este archivo');
     }
 
-    const file = await prisma.orderFile.findFirst({
+    const file = await this.prisma.orderFile.findFirst({
       where: { order_id: orderId },
       orderBy: { uploaded_at: 'asc' }
     });

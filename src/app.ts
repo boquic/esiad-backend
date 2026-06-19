@@ -58,6 +58,8 @@ app.get('/health', async (req: Request, res: Response) => {
 app.use(errorLogger);
 app.use(errorHandlerMiddleware);
 
+export { app };
+
 const startServer = async () => {
   await connectDatabase();
   startExpireBudgetsJob();
@@ -67,4 +69,6 @@ const startServer = async () => {
   });
 };
 
-startServer();
+if (require.main === module) {
+  startServer();
+}

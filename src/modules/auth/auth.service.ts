@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import { ENV } from '../../config/env';
 import { prisma } from '../../config/database';
 import { notificationsService } from '../notifications/notifications.service';
+import { ConflictError, UnauthorizedError } from '../../utils/errors';
 
 type RegisterInput = {
   dni: string;
@@ -32,12 +33,12 @@ export class AuthService {
 
     const existingDni = await prisma.user.findUnique({ where: { dni } });
     if (existingDni) {
-      throw new Error('DNI ya registrado');
+      throw new ConflictError('DNI ya registrado');
     }
 
     const existingPhone = await prisma.user.findUnique({ where: { phone } });
     if (existingPhone) {
-      throw new Error('Celular ya registrado');
+      throw new ConflictError('Celular ya registrado');
     }
 
     const password_hash = await bcrypt.hash(password, 10);
@@ -69,12 +70,12 @@ export class AuthService {
     });
 
     if (!user) {
-      throw new Error('Credenciales invalidas');
+      throw new UnauthorizedError('Credenciales invalidas');
     }
 
     const isPasswordValid = await bcrypt.compare(password, user.password_hash);
     if (!isPasswordValid) {
-      throw new Error('Credenciales invalidas');
+      throw new UnauthorizedError('Credenciales invalidas');
     }
 
     const payload: AuthTokenPayload = {

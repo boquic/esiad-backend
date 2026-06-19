@@ -3,27 +3,34 @@ import { app } from '../../app';
 import { prisma } from '../../config/database';
 import bcrypt from 'bcrypt';
 
+const generateRandomNum = (len: number) => Math.random().toString().slice(2, 2 + len);
+
 describe('Auth Controller (Integration)', () => {
+  const testUser = {
+    dni: generateRandomNum(8),
+    phone: generateRandomNum(9),
+  };
+  const testUser2 = {
+    dni: generateRandomNum(8),
+    phone: generateRandomNum(9),
+  };
+
   beforeAll(async () => {
     // Clean up DB before all tests
+    await prisma.notification.deleteMany({
+      where: { user: { dni: { in: [testUser.dni, testUser2.dni] } } }
+    });
     await prisma.user.deleteMany({
-      where: {
-        OR: [
-          { dni: { in: ['12345678', '87654321'] } },
-          { phone: { in: ['999888777', '999888666'] } }
-        ]
-      }
+      where: { dni: { in: [testUser.dni, testUser2.dni] } }
     });
   });
 
   afterAll(async () => {
+    await prisma.notification.deleteMany({
+      where: { user: { dni: { in: [testUser.dni, testUser2.dni] } } }
+    });
     await prisma.user.deleteMany({
-      where: {
-        OR: [
-          { dni: { in: ['12345678', '87654321'] } },
-          { phone: { in: ['999888777', '999888666'] } }
-        ]
-      }
+      where: { dni: { in: [testUser.dni, testUser2.dni] } }
     });
     await prisma.$disconnect();
   });
@@ -33,16 +40,16 @@ describe('Auth Controller (Integration)', () => {
       const res = await request(app)
         .post('/api/auth/register')
         .send({
-          dni: '12345678',
+          dni: testUser.dni,
           first_name: 'Test',
           last_name: 'User',
-          phone: '999888777',
+          phone: testUser.phone,
           password: 'password123'
         });
 
       expect(res.status).toBe(201);
       expect(res.body.data).toHaveProperty('id');
-      expect(res.body.data.dni).toBe('12345678');
+      expect(res.body.data.dni).toBe(testUser.dni);
       expect(res.body.data).not.toHaveProperty('password_hash');
     });
 
@@ -50,7 +57,7 @@ describe('Auth Controller (Integration)', () => {
       const res = await request(app)
         .post('/api/auth/register')
         .send({
-          dni: '12345678'
+          dni: testUser.dni
         });
 
       expect(res.status).toBe(400);
@@ -61,10 +68,10 @@ describe('Auth Controller (Integration)', () => {
       const res = await request(app)
         .post('/api/auth/register')
         .send({
-          dni: '12345678',
+          dni: testUser.dni,
           first_name: 'Test',
           last_name: 'User2',
-          phone: '999888666',
+          phone: testUser2.phone,
           password: 'password123'
         });
 
@@ -78,7 +85,7 @@ describe('Auth Controller (Integration)', () => {
       const res = await request(app)
         .post('/api/auth/login')
         .send({
-          identifier: '12345678',
+          identifier: testUser.dni,
           password: 'wrongpassword'
         });
 
@@ -90,13 +97,13 @@ describe('Auth Controller (Integration)', () => {
       const res = await request(app)
         .post('/api/auth/login')
         .send({
-          identifier: '12345678',
+          identifier: testUser.dni,
           password: 'password123'
         });
 
       expect(res.status).toBe(200);
       expect(res.body.data).toHaveProperty('token');
-      expect(res.body.data.user.dni).toBe('12345678');
+      expect(res.body.data.user.dni).toBe(testUser.dni);
     });
   });
 });

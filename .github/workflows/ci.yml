@@ -1,0 +1,31 @@
+name: CI
+
+# Ejecuta la suite de integración en Docker en cada push y PR a main.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  integration-tests:
+    name: Pruebas de integración (Docker)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Preparar .env.test
+        run: cp .env.test.example .env.test
+
+      - name: Levantar stack de test y correr la suite
+        run: |
+          docker compose -f docker-compose.test.yml up \
+            --build \
+            --abort-on-container-exit \
+            --exit-code-from api-test
+
+      - name: Limpiar
+        if: always()
+        run: docker compose -f docker-compose.test.yml down -v

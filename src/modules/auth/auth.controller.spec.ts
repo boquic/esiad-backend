@@ -1,7 +1,7 @@
 import request from 'supertest';
+import { authenticator } from 'otplib';
 import { app } from '../../app';
 import { prisma } from '../../config/database';
-import bcrypt from 'bcrypt';
 
 const generateRandomNum = (len: number) => Math.random().toString().slice(2, 2 + len);
 
@@ -80,7 +80,7 @@ describe('Auth Controller (Integration)', () => {
     });
   });
 
-  describe('POST /api/auth/login', () => {
+  describe('POST /api/auth/login (paso 1 - reto 2FA)', () => {
     it('should return 401 for invalid credentials', async () => {
       const res = await request(app)
         .post('/api/auth/login')
@@ -93,7 +93,7 @@ describe('Auth Controller (Integration)', () => {
       expect(res.body.message).toBe('Credenciales invalidas');
     });
 
-    it('should login user and return token and return 200', async () => {
+    it('should require 2FA setup on first login and NOT return a token', async () => {
       const res = await request(app)
         .post('/api/auth/login')
         .send({
@@ -102,8 +102,44 @@ describe('Auth Controller (Integration)', () => {
         });
 
       expect(res.status).toBe(200);
+      expect(res.body.data).not.toHaveProperty('token');
+      expect(res.body.data.requires_2fa_setup).toBe(true);
+      expect(res.body.data).toHaveProperty('otpauth_url');
+      expect(res.body.data).toHaveProperty('secret');
+    });
+  });
+
+  describe('POST /api/auth/login/verify (paso 2 - TOTP)', () => {
+    it('should reject an invalid TOTP code with 401', async () => {
+      const res = await request(app)
+        .post('/api/auth/login/verify')
+        .send({
+          identifier: testUser.dni,
+          password: 'password123',
+          code: '000000'
+        });
+
+      expect(res.status).toBe(401);
+    });
+
+    it('should return token and enable 2FA with a valid TOTP code', async () => {
+      // Paso 1: obtener el secreto de enrolamiento.
+      const challenge = await request(app)
+        .post('/api/auth/login')
+        .send({ identifier: testUser.dni, password: 'password123' });
+
+      const secret = challenge.body.data.secret as string;
+      const code = authenticator.generate(secret);
+
+      // Paso 2: verificar el código y recibir el JWT.
+      const res = await request(app)
+        .post('/api/auth/login/verify')
+        .send({ identifier: testUser.dni, password: 'password123', code });
+
+      expect(res.status).toBe(200);
       expect(res.body.data).toHaveProperty('token');
       expect(res.body.data.user.dni).toBe(testUser.dni);
+      expect(res.body.data.user).not.toHaveProperty('two_factor_secret');
     });
   });
 });

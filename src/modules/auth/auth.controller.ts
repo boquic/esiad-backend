@@ -31,4 +31,17 @@ export class AuthController {
     const result = await authService.login({ identifier, password });
     return res.status(200).json({ data: result });
   }
+
+  async verify(req: Request, res: Response): Promise<Response> {
+    const identifier = req.body.identifier?.trim() ?? req.body.dni?.trim() ?? req.body.phone?.trim();
+    const password = req.body.password;
+    const code = req.body.code?.toString().trim();
+
+    if (!identifier || !password || !code) {
+      throw new BadRequestError('El identificador, la contrasena y el codigo son requeridos');
+    }
+
+    const result = await authService.verifyTwoFactor({ identifier, password, code });
+    return res.status(200).json({ data: result });
+  }
 }

@@ -89,6 +89,8 @@ model User {
   role                   Role      @default(CLIENT)
   completed_orders_count Int       @default(0)
   is_frequent            Boolean   @default(false)
+  two_factor_secret      String?
+  two_factor_enabled     Boolean   @default(false)
   created_at             DateTime  @default(now())
 
   operator               Operator?

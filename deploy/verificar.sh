@@ -34,23 +34,39 @@ for i in 1 2 3 4 5; do
 done
 { [ "$regcode" = "201" ] || [ "$regcode" = "200" ]; } && ok "registro de DNI $DNI ($regcode)" || bad "registro devolvió $regcode"
 
-# 2) Login -> token
+# 2) Login paso 1 -> reto 2FA (sin token todavía)
 login=$(curl -s -X POST "$BASE/api/auth/login" \
   -H "Content-Type: application/json" \
   -d "{\"identifier\":\"$DNI\",\"password\":\"$PWD_TEST\"}")
-TOKEN=$(echo "$login" | sed -n 's/.*"token":"\([^"]*\)".*/\1/p')
-[ -n "$TOKEN" ] && ok "login devolvió token" || bad "login NO devolvió token -> $login"
+SECRET=$(echo "$login" | sed -n 's/.*"secret":"\([^"]*\)".*/\1/p')
+echo "$login" | grep -q '"requires_2fa_setup":true' \
+  && ok "login paso 1 devuelve reto 2FA (sin token)" \
+  || bad "login no devolvió reto 2FA -> $login"
 
 # 3) Ruta protegida SIN token -> 401
 code=$(curl -s -o /dev/null -w "%{http_code}" "$BASE/api/orders/my")
 [ "$code" = "401" ] && ok "GET /api/orders/my sin token -> 401" || bad "esperaba 401, obtuve $code"
 
-# 4) Ruta protegida CON token (rol correcto CLIENT) -> 200
+# 4) Login paso 2: genera el código TOTP (usando otplib dentro del contenedor
+#    backend) y verifica para obtener el token.
+TOKEN=""
+CONT=$(docker ps --filter "name=backend" --format "{{.Names}}" 2>/dev/null | head -1)
+if [ -n "$SECRET" ] && [ -n "$CONT" ]; then
+  CODE=$(docker exec -i "$CONT" node -e "const {authenticator}=require('otplib'); process.stdout.write(authenticator.generate('$SECRET'))" 2>/dev/null)
+  verify=$(curl -s -X POST "$BASE/api/auth/login/verify" \
+    -H "Content-Type: application/json" \
+    -d "{\"identifier\":\"$DNI\",\"password\":\"$PWD_TEST\",\"code\":\"$CODE\"}")
+  TOKEN=$(echo "$verify" | sed -n 's/.*"token":"\([^"]*\)".*/\1/p')
+  [ -n "$TOKEN" ] && ok "login paso 2 (TOTP) devolvió token" || bad "verify NO devolvió token -> $verify"
+else
+  echo "  ⚠️  Omito pasos con token: no se pudo generar el código TOTP (¿contenedor backend?)."
+fi
+
+# 5) Ruta protegida CON token (rol CLIENT) -> 200, y rol incorrecto -> 403
 if [ -n "$TOKEN" ]; then
   code=$(curl -s -o /dev/null -w "%{http_code}" "$BASE/api/orders/my" -H "Authorization: Bearer $TOKEN")
   [ "$code" = "200" ] && ok "GET /api/orders/my con token CLIENT -> 200" || bad "esperaba 200, obtuve $code"
 
-  # 5) Rol incorrecto: CLIENT contra ruta ADMIN -> 403
   code=$(curl -s -o /dev/null -w "%{http_code}" "$BASE/api/admin/orders" -H "Authorization: Bearer $TOKEN")
   [ "$code" = "403" ] && ok "GET /api/admin/orders con token CLIENT -> 403" || bad "esperaba 403, obtuve $code"
 fi

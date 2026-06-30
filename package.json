@@ -4,7 +4,12 @@
   "description": "",
   "main": "index.js",
   "scripts": {
+    "build": "prisma generate && tsc",
+    "db:generate": "prisma generate",
+    "db:migrate:deploy": "prisma migrate deploy",
+    "db:migrate:dev": "prisma migrate dev",
     "dev": "ts-node-dev --respawn --transpile-only src/app.ts",
+    "start": "node dist/src/app.js",
     "test": "jest"
   },
   "keywords": [],

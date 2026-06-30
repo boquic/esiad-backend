@@ -28,8 +28,9 @@ describe('OrdersService (Unit with Dependency Injection)', () => {
       // Configurar el mock para devolver un pedido activo
       prismaMock.order.findFirst.mockResolvedValueOnce({ id: 'active-order' } as any);
 
-      await expect(ordersService.create(clientId, baseData)).rejects.toThrow(ConflictError);
-      await expect(ordersService.create(clientId, baseData)).rejects.toThrow(/RN6/);
+      await expect(ordersService.create(clientId, baseData)).rejects.toThrow(
+        new ConflictError('RN6: Ya tienes un pedido de este tipo en progreso')
+      );
     });
 
     it('should throw NotFoundError if serviceType does not exist', async () => {

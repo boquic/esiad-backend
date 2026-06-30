@@ -1,0 +1,8 @@
+{
+  "//": "esiad-frontend/proxy.conf.json — para 'ng serve'. Reenvía /api al backend local y evita CORS en desarrollo. Usar: ng serve --proxy-config proxy.conf.json",
+  "/api": {
+    "target": "http://localhost:3000",
+    "secure": false,
+    "changeOrigin": true
+  }
+}

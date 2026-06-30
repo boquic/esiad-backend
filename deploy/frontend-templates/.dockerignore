@@ -1,0 +1,14 @@
+# Copiar a la raíz de esiad-frontend/ como `.dockerignore`
+node_modules
+dist
+.angular
+coverage
+.git
+.gitignore
+*.log
+.env
+.env.*
+.vscode
+.idea
+.DS_Store
+Thumbs.db

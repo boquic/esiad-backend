@@ -1,0 +1,35 @@
+# Dockerfile de REFERENCIA para el repo esiad-frontend (Angular v21).
+# Copiar a esiad-frontend/Dockerfile y ajustar el nombre del proyecto en la
+# ruta de salida del build (dist/<nombre-proyecto>).
+#
+# La config de nginx NO se copia aquí: el compose de deploy la monta como
+# volumen (deploy/nginx.conf -> /etc/nginx/conf.d/default.conf).
+
+############################
+# Stage 1: build de Angular
+############################
+FROM node:22-bookworm-slim AS builder
+
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+RUN npm ci
+
+COPY . .
+
+# Build de producción. Con reverse proxy, environment.prod.ts apunta a '/api'
+# (rutas relativas), por lo que NO hace falta inyectar una URL de API.
+RUN npm run build -- --configuration production
+
+############################
+# Stage 2: nginx sirve el estático
+############################
+FROM nginx:1.27-alpine AS runtime
+
+# Ajusta <nombre-proyecto> al valor real en angular.json (outputPath).
+# En Angular moderno el index suele quedar en dist/<proyecto>/browser.
+COPY --from=builder /app/dist/esiad-frontend/browser /usr/share/nginx/html
+
+EXPOSE 80
+# default.conf llega montado por docker-compose (deploy/nginx.conf).
+CMD ["nginx", "-g", "daemon off;"]

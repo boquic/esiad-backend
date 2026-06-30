@@ -1,10 +1,20 @@
 import { config } from 'dotenv';
-config({ override: true });
+config();
+
+function requireEnv(name: string): string {
+  const value = process.env[name];
+
+  if (!value || value.trim() === '') {
+    throw new Error(`Missing required environment variable: ${name}`);
+  }
+
+  return value;
+}
 
 export const ENV = {
   PORT: process.env.PORT || 3000,
-  DATABASE_URL: process.env.DATABASE_URL as string,
-  JWT_SECRET: process.env.JWT_SECRET as string,
+  DATABASE_URL: requireEnv('DATABASE_URL'),
+  JWT_SECRET: requireEnv('JWT_SECRET'),
   JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || '24h',
   NODE_ENV: process.env.NODE_ENV || 'development',
   FRONTEND_URL: process.env.FRONTEND_URL || 'http://localhost:4200',

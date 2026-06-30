@@ -1,0 +1,30 @@
+services:
+  postgres-test:
+    image: postgres:17
+    env_file:
+      - .env.test
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-sigeped_test}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    # DB efímera: los datos viven en memoria, no se persiste volumen.
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-sigeped_test}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api-test:
+    build:
+      context: .
+    image: esiad-backend
+    env_file:
+      - .env.test
+    depends_on:
+      postgres-test:
+        condition: service_healthy
+    # Aplica migraciones contra la DB de test y corre la suite en serie.
+    command: ["sh", "-c", "npm run db:migrate:deploy && npm test -- --runInBand"]
+    restart: "no"

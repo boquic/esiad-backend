@@ -37,6 +37,25 @@ export const uploadMiddleware = multer({
   }
 });
 
+// Corte láser: el cliente solo puede subir .dwg para garantizar compatibilidad con la máquina de corte
+const dwgOnlyFileFilter = (req: Express.Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
+  const ext = path.extname(file.originalname).toLowerCase();
+
+  if (ext === '.dwg') {
+    cb(null, true);
+  } else {
+    cb(new Error('Este servicio es de corte láser: solo se aceptan archivos .dwg para garantizar compatibilidad con la máquina de corte'));
+  }
+};
+
+export const uploadDwgOnlyMiddleware = multer({
+  storage,
+  fileFilter: dwgOnlyFileFilter,
+  limits: {
+    fileSize: ENV.UPLOAD_MAX_SIZE_MB * 1024 * 1024 // MB a Bytes
+  }
+});
+
 const imageFilter = (req: Express.Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
   const allowedExtensions = ['.jpg', '.jpeg', '.png'];
   const ext = path.extname(file.originalname).toLowerCase();

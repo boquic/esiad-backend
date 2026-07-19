@@ -2,13 +2,40 @@ import { NextFunction, Request, Response, Router } from 'express';
 import { OrdersController } from './orders.controller';
 import { authMiddleware } from '../../middlewares/auth.middleware';
 import { requireRole } from '../../middlewares/role.middleware';
-import { buildUploadErrorResponse, uploadMiddleware } from '../../middlewares/upload.middleware';
+import { buildUploadErrorResponse, uploadDwgOnlyMiddleware, uploadMiddleware } from '../../middlewares/upload.middleware';
+import { prisma } from '../../config/database';
+import { mapPricingModelToSpecialty } from '../../utils/order.utils';
 
 const router = Router();
 const ordersController = new OrdersController();
 
+// Determina si el pedido corresponde al servicio de corte láser (RN: solo .dwg para láser)
+const resolveOrderUploadPolicy = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const clientId = req.user.id as string;
+    const orderId = req.params.id as string;
+
+    const order = await prisma.order.findFirst({
+      where: { id: orderId, client_id: clientId },
+      include: { service_type: true }
+    });
+
+    if (!order) {
+      res.status(404).json({ error: true, message: 'Pedido no encontrado' });
+      return;
+    }
+
+    const isLaserOrder = mapPricingModelToSpecialty(order.service_type.pricing_model) === 'LASER';
+    (req as Request & { isLaserOrder?: boolean }).isLaserOrder = isLaserOrder;
+    next();
+  } catch (error) {
+    next(error);
+  }
+};
+
 const handleOrderFileUpload = (req: Request, res: Response, next: NextFunction): void => {
-  const upload = uploadMiddleware.single('file');
+  const isLaserOrder = (req as Request & { isLaserOrder?: boolean }).isLaserOrder === true;
+  const upload = (isLaserOrder ? uploadDwgOnlyMiddleware : uploadMiddleware).single('file');
 
   upload(req, res, (error: unknown) => {
     const uploadError = buildUploadErrorResponse(error);
@@ -32,9 +59,10 @@ router.get('/my', authMiddleware, requireRole(['CLIENT']), ordersController.find
 router.get('/:id', authMiddleware, requireRole(['CLIENT']), ordersController.findById.bind(ordersController));
 
 // Subir plano para un pedido
-router.post('/:id/files', 
-  authMiddleware, 
-  requireRole(['CLIENT']), 
+router.post('/:id/files',
+  authMiddleware,
+  requireRole(['CLIENT']),
+  resolveOrderUploadPolicy,
   handleOrderFileUpload,
   ordersController.uploadFile.bind(ordersController)
 );

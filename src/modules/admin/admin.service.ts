@@ -826,7 +826,7 @@ export class AdminService {
       client_is_frequent: order.client.is_frequent ? 'YES' : 'NO',
       service_name: order.service_type.name,
       pricing_model: order.service_type.pricing_model,
-      material_name: order.material.name,
+      material_name: order.material?.name ?? 'SIN MATERIAL',
       operator_name: order.operator
         ? `${order.operator.user.first_name} ${order.operator.user.last_name}`
         : 'UNASSIGNED',

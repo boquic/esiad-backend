@@ -109,11 +109,13 @@ function buildSafeOperatorOrder(order: OperatorQueueOrder | OperatorDetailOrder)
       pricing_model: order.service_type.pricing_model,
       required_specialty: requiredSpecialty
     },
-    material: {
-      id: order.material.id,
-      name: order.material.name,
-      unit: order.material.unit
-    },
+    material: order.material
+      ? {
+          id: order.material.id,
+          name: order.material.name,
+          unit: order.material.unit
+        }
+      : null,
     client: order.client,
     files
   };

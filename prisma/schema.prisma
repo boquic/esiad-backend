@@ -155,11 +155,12 @@ model Material {
 
 model Order {
   id                String           @id @default(uuid())
+  order_number      Int              @unique @default(autoincrement())
   client_id         String
   operator_id       String?
   service_type_id   String
-  material_id       String
-  status            OrderStatus      @default(BUDGETED)
+  material_id       String?
+  status            OrderStatus      @default(DRAFT)
   payment_condition PaymentCondition
   estimated_price   Decimal          @db.Decimal(10, 2)
   final_price       Decimal?         @db.Decimal(10, 2)
@@ -181,7 +182,7 @@ model Order {
   client            User             @relation("ClientOrders", fields: [client_id], references: [id])
   operator          Operator?        @relation(fields: [operator_id], references: [id])
   service_type      ServiceType      @relation(fields: [service_type_id], references: [id])
-  material          Material         @relation(fields: [material_id], references: [id])
+  material          Material?        @relation(fields: [material_id], references: [id])
   files             OrderFile[]
   payments          Payment[]
   notifications     Notification[]

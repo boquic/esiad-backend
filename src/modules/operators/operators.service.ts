@@ -512,6 +512,86 @@ export class OperatorsService {
     };
   }
 
+  async confirmPickup(userId: string, orderId: string) {
+    const operator = await prisma.operator.findUnique({
+      where: { user_id: userId }
+    });
+
+    if (!operator) {
+      throw new Error('Operario no encontrado');
+    }
+
+    const order = await prisma.order.findFirst({
+      where: { id: orderId }
+    });
+
+    if (!order) {
+      throw new Error('Pedido no encontrado');
+    }
+
+    if (order.operator_id !== operator.id) {
+      throw new Error('No puedes confirmar la recogida de un pedido que no te fue asignado');
+    }
+
+    if (order.status !== 'READY') {
+      throw new Error(`Solo se puede confirmar la recogida de un pedido en estado READY. Estado actual: ${order.status}`);
+    }
+
+    // RN: saldo 0 antes de entregar. Los pedidos con contraentrega se saldan en efectivo en el mismo momento
+    // de la recogida, por lo que la validación de saldo digital solo aplica a pedidos con adelanto (ADVANCE_50).
+    if (order.payment_condition === 'ADVANCE_50') {
+      const approvedPayments = await prisma.payment.findMany({
+        where: { order_id: orderId, status: 'APPROVED' },
+        select: { amount: true }
+      });
+
+      const totalPaid = approvedPayments.reduce(
+        (total, payment) => total.plus(payment.amount),
+        new Prisma.Decimal(0)
+      );
+
+      const totalOwed = order.final_price ?? order.estimated_price;
+      const balance = totalOwed.minus(totalPaid);
+
+      if (balance.greaterThan(0)) {
+        throw new Error(`No se puede confirmar la recogida: el pedido tiene un saldo pendiente de ${balance.toFixed(2)}`);
+      }
+    }
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const updatedOrder = await tx.order.update({
+        where: { id: orderId },
+        data: { status: 'DELIVERED' }
+      });
+
+      const client = await tx.user.update({
+        where: { id: order.client_id },
+        data: {
+          completed_orders_count: { increment: 1 }
+        },
+        select: { completed_orders_count: true }
+      });
+
+      // Si alcanzó el umbral de 5 pedidos, marcar como frecuente
+      if (client.completed_orders_count >= 5) {
+        await tx.user.update({
+          where: { id: order.client_id },
+          data: { is_frequent: true }
+        });
+      }
+
+      return updatedOrder;
+    });
+
+    await notificationsService.send(updated.id, 'ORDER_DELIVERED');
+
+    return {
+      id: updated.id,
+      status: updated.status,
+      updated_at: updated.updated_at
+    };
+  }
+
   async getDownloadableFile(userId: string, orderId: string, fileId: string) {
     const operator = await prisma.operator.findUnique({
       where: { user_id: userId }

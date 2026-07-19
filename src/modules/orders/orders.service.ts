@@ -533,52 +533,7 @@ export class OrdersService {
     return updatedOrder;
   }
 
-  async confirmPickup(orderId: string, clientId: string) {
-    const order = await this.prisma.order.findFirst({
-      where: {
-        id: orderId,
-        client_id: clientId,
-      }
-    });
-
-    if (!order) {
-      throw new Error('Pedido no encontrado');
-    }
-
-    if (order.status !== 'READY') {
-      throw new BadRequestError(`No se puede confirmar la recogida de un pedido en estado ${order.status}`);
-    }
-
-    // Marcar como DELIVERED y actualizar contador de pedidos completados del cliente
-    const updated = await this.prisma.$transaction(async (tx) => {
-      const updatedOrder = await tx.order.update({
-        where: { id: orderId },
-        data: { status: 'DELIVERED' }
-      });
-
-      const user = await tx.user.update({
-        where: { id: clientId },
-        data: {
-          completed_orders_count: { increment: 1 }
-        },
-        select: { completed_orders_count: true }
-      });
-
-      // Si alcanzó el umbral de 5 pedidos, marcar como frecuente
-      if (user.completed_orders_count >= 5) {
-        await tx.user.update({
-          where: { id: clientId },
-          data: { is_frequent: true }
-        });
-      }
-
-      return updatedOrder;
-    });
-
-    await this.notificationsService.send(updated.id, 'ORDER_DELIVERED');
-
-    return updated;
-  }
+  // Confirmar recogida: movido al operario (OperatorsService.confirmPickup). El cliente ya no confirma nada.
 
   async getDownloadableFile(clientId: string, orderId: string, fileId: string) {
     const order = await this.prisma.order.findFirst({

@@ -68,4 +68,12 @@ router.patch(
   operatorsController.updateOrderNotes
 );
 
+// Confirmar recogida cuando el cliente llega al local (cierra el pedido: DELIVERED)
+router.post(
+  '/orders/:id/confirm-pickup',
+  authMiddleware,
+  requireRole(['OPERATOR']),
+  operatorsController.confirmPickup
+);
+
 export default router;

@@ -257,6 +257,40 @@ export class OperatorsController {
     }
   }
 
+  async confirmPickup(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const userId = (req as AuthenticatedOperatorRequest).user?.id;
+      const id = req.params.id as string;
+
+      if (!userId) {
+        res.status(401).json({ error: true, message: 'Acceso no autorizado, token no proporcionado' });
+        return;
+      }
+
+      const order = await operatorsService.confirmPickup(userId, id);
+      res.status(200).json({ data: order });
+    } catch (error) {
+      if (error instanceof Error) {
+        if (error.message === 'No puedes confirmar la recogida de un pedido que no te fue asignado') {
+          res.status(403).json({ error: true, message: error.message });
+          return;
+        }
+        if (
+          error.message.includes('Solo se puede confirmar la recogida') ||
+          error.message.includes('saldo pendiente')
+        ) {
+          res.status(400).json({ error: true, message: error.message });
+          return;
+        }
+        if (error.message === 'Operario no encontrado' || error.message === 'Pedido no encontrado') {
+          res.status(404).json({ error: true, message: error.message });
+          return;
+        }
+      }
+      next(error);
+    }
+  }
+
   async downloadOrderFile(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const userId = (req as AuthenticatedOperatorRequest).user?.id;

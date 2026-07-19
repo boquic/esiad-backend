@@ -236,29 +236,5 @@ describe('OrdersService (Unit with Dependency Injection)', () => {
     });
   });
 
-  describe('confirmPickup', () => {
-    it('should throw BadRequestError if order is not READY', async () => {
-      prismaMock.order.findFirst.mockResolvedValueOnce({ id: 'o1', status: 'IN_PROGRESS' } as any);
-
-      await expect(ordersService.confirmPickup('o1', 'c1')).rejects.toThrow(BadRequestError);
-    });
-
-    it('should update user to frequent if they reach 5 orders', async () => {
-      prismaMock.order.findFirst.mockResolvedValueOnce({ id: 'o1', status: 'READY' } as any);
-      
-      // Simular $transaction manual
-      prismaMock.$transaction.mockImplementationOnce(async (callback) => {
-        return await callback(prismaMock as any);
-      });
-
-      prismaMock.order.update.mockResolvedValueOnce({ id: 'o1', status: 'DELIVERED' } as any);
-      prismaMock.user.update.mockResolvedValueOnce({ completed_orders_count: 5 } as any); // First call increments
-      prismaMock.user.update.mockResolvedValueOnce({ is_frequent: true } as any); // Second call if >= 5
-
-      await ordersService.confirmPickup('o1', 'c1');
-
-      expect(prismaMock.user.update).toHaveBeenCalledTimes(2);
-      expect(notificationsMock.send).toHaveBeenCalledWith('o1', 'ORDER_DELIVERED');
-    });
-  });
+  // confirmPickup se movió a OperatorsService (ver operators.service.spec.ts) — el cliente ya no confirma la recogida.
 });

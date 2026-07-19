@@ -100,11 +100,7 @@ router.post('/:id/observations',
   ordersController.addObservation.bind(ordersController)
 );
 
-router.post('/:id/confirm-pickup',
-  authMiddleware,
-  requireRole(['CLIENT']),
-  ordersController.confirmPickup.bind(ordersController)
-);
+// Confirmar recogida: movido al operario (POST /api/operator/orders/:id/confirm-pickup). El cliente ya no confirma nada.
 
 // Descarga protegida de archivos (solo cliente propietario)
 router.get('/:id/file',

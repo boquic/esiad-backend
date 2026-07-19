@@ -2636,10 +2636,10 @@ export const openApiSpec = {
         }
       }
     },
-    '/api/orders/{id}/confirm-pickup': {
+    '/api/operator/orders/{id}/confirm-pickup': {
       post: {
-        tags: ['Orders'],
-        summary: 'Confirmar recogida del pedido por parte del cliente (doble validación)',
+        tags: ['Operator'],
+        summary: 'Confirmar recogida del pedido por parte del operario cuando el cliente llega al local (cierra el pedido: DELIVERED). El cliente ya no confirma la recogida.',
         security: [{ bearerAuth: [] }],
         parameters: [
           {
@@ -2655,7 +2655,7 @@ export const openApiSpec = {
         },
         responses: {
           200: {
-            description: 'Pedido marcado como DELIVERED',
+            description: 'Pedido marcado como DELIVERED. Incrementa completed_orders_count del cliente y actualiza is_frequent (>=5)',
             content: {
               'application/json': {
                 schema: {
@@ -2665,10 +2665,13 @@ export const openApiSpec = {
             }
           },
           400: {
-            description: 'No se puede confirmar la recogida (estado inválido)'
+            description: 'Estado distinto de READY, o saldo pendiente en un pedido con adelanto (ADVANCE_50)'
           },
           401: {
             description: 'No autorizado'
+          },
+          403: {
+            description: 'Pedido no asignado a este operario'
           },
           404: {
             description: 'Pedido no encontrado'

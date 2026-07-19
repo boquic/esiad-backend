@@ -130,14 +130,6 @@ export class OrdersController {
     return res.status(200).json({ data: order });
   }
 
-  async confirmPickup(req: Request, res: Response): Promise<any> {
-    const clientId = req.user.id as string;
-    const id = req.params.id as string;
-
-    const order = await ordersService.confirmPickup(id, clientId);
-    return res.status(200).json({ data: order });
-  }
-
   async downloadOrderFile(req: Request, res: Response): Promise<any> {
     const clientId = req.user.id as string;
     const orderId = req.params.id as string;

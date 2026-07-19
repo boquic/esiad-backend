@@ -64,11 +64,18 @@ router.patch('/:id', authMiddleware, requireRole(['CLIENT']), ordersController.u
 // Eliminar un borrador (solo estado DRAFT y solo el dueño del pedido)
 router.delete('/:id', authMiddleware, requireRole(['CLIENT']), ordersController.remove.bind(ordersController));
 
-// Enviar el borrador: DRAFT -> BUDGETED
+// Enviar el borrador: DRAFT -> BUDGETED (legado, ver nota en OrdersService.submitDraft)
 router.post('/:id/submit',
   authMiddleware,
   requireRole(['CLIENT']),
   ordersController.submitDraft.bind(ordersController)
+);
+
+// Enviar el borrador a cotización del operario: DRAFT -> OPERATOR_REVIEW_PENDING (HU-03)
+router.post('/:id/send-to-quotation',
+  authMiddleware,
+  requireRole(['CLIENT']),
+  ordersController.sendToQuotation.bind(ordersController)
 );
 
 // Subir plano para un pedido

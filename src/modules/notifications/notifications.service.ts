@@ -89,6 +89,24 @@ export class NotificationsService {
     await this.sendWhatsApp(order.client.phone, message, order.id, order.client.id, triggerEvent);
   }
 
+  /**
+   * Notificación in-app (no WhatsApp) para un operario: crea el registro en
+   * `Notification` directamente, sin pasar por Twilio. Se usa, por ejemplo,
+   * cuando el cliente envía un borrador a cotización y hay que avisarle al
+   * operario asignado dentro de la plataforma.
+   */
+  async notifyOperatorInApp(orderId: string, operatorUserId: string, triggerEvent: TriggerEvent): Promise<void> {
+    await prisma.notification.create({
+      data: {
+        order_id: orderId,
+        user_id: operatorUserId,
+        trigger_event: triggerEvent,
+        whatsapp_message_id: null,
+        delivery_status: 'SENT'
+      }
+    });
+  }
+
   async sendWelcomeMessage(firstName: string, phone: string): Promise<void> {
     const message = `Hola ${firstName}. Bienvenido a SIGEPED - ESIAD Proyectos. Gestiona tus pedidos de corte laser, ploteo, impresion 3D y maquetas desde nuestra plataforma.`;
 

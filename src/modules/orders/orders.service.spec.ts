@@ -250,6 +250,51 @@ describe('OrdersService (Unit with Dependency Injection)', () => {
         expect(notificationsMock.send).toHaveBeenCalledWith('o1', 'BUDGET_READY');
       });
     });
+
+    describe('sendToQuotation', () => {
+      it('should throw BadRequestError (400) if the order is not DRAFT', async () => {
+        prismaMock.order.findUnique.mockResolvedValueOnce({ ...draft, status: 'BUDGETED' });
+
+        await expect(ordersService.sendToQuotation('o1', clientId)).rejects.toThrow(BadRequestError);
+      });
+
+      it('should throw BadRequestError if the draft has no attached file', async () => {
+        prismaMock.order.findUnique.mockResolvedValueOnce(draft);
+        prismaMock.serviceType.findUnique.mockResolvedValueOnce({
+          id: 'st-1',
+          pricing_model: 'PER_UNIT',
+          is_active: true,
+        } as any);
+        prismaMock.orderFile.count.mockResolvedValueOnce(0);
+
+        await expect(ordersService.sendToQuotation('o1', clientId)).rejects.toThrow(BadRequestError);
+      });
+
+      it('should assign an operator, move it to OPERATOR_REVIEW_PENDING, stamp client_reviewed_at and notify the operator in-app', async () => {
+        prismaMock.order.findUnique.mockResolvedValueOnce(draft);
+        prismaMock.serviceType.findUnique.mockResolvedValueOnce({
+          id: 'st-1',
+          pricing_model: 'PER_UNIT',
+          is_active: true,
+        } as any);
+        prismaMock.orderFile.count.mockResolvedValueOnce(1);
+        prismaMock.operator.findFirst.mockResolvedValueOnce({ id: 'op-1', user_id: 'user-op-1' } as any);
+        prismaMock.order.update.mockResolvedValueOnce({ id: 'o1', status: 'OPERATOR_REVIEW_PENDING' } as any);
+
+        const result = await ordersService.sendToQuotation('o1', clientId);
+
+        const callArgs = prismaMock.order.update.mock.calls[0][0];
+        expect(callArgs.data.status).toBe('OPERATOR_REVIEW_PENDING');
+        expect(callArgs.data.operator_id).toBe('op-1');
+        expect(callArgs.data.client_reviewed_at).toBeInstanceOf(Date);
+        expect(result.status).toBe('OPERATOR_REVIEW_PENDING');
+        expect(notificationsMock.notifyOperatorInApp).toHaveBeenCalledWith(
+          'o1',
+          'user-op-1',
+          'ORDER_SENT_TO_QUOTATION'
+        );
+      });
+    });
   });
 
   describe('confirmPickup', () => {

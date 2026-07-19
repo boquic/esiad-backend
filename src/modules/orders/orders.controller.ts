@@ -51,12 +51,22 @@ export class OrdersController {
     return res.status(200).json({ data: result });
   }
 
-  /** POST /api/orders/:id/submit — Enviar el borrador: DRAFT -> BUDGETED. */
+  /** POST /api/orders/:id/submit — Enviar el borrador: DRAFT -> BUDGETED. (legado, ver submitDraft en el servicio) */
   async submitDraft(req: Request, res: Response): Promise<any> {
     const clientId = req.user.id as string;
     const id = req.params.id as string;
 
     const order = await ordersService.submitDraft(id, clientId);
+
+    return res.status(200).json({ data: order });
+  }
+
+  /** POST /api/orders/:id/send-to-quotation — Enviar el borrador a cotización: DRAFT -> OPERATOR_REVIEW_PENDING (HU-03). */
+  async sendToQuotation(req: Request, res: Response): Promise<any> {
+    const clientId = req.user.id as string;
+    const id = req.params.id as string;
+
+    const order = await ordersService.sendToQuotation(id, clientId);
 
     return res.status(200).json({ data: order });
   }

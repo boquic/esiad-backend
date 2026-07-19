@@ -251,6 +251,11 @@ export class OrdersService {
   /**
    * Envía un borrador: asigna operario, reinicia la vigencia del presupuesto
    * y notifica. DRAFT -> BUDGETED.
+   *
+   * @deprecated Legado desde que create() dejó de calcular un precio
+   * automático (T-01): ya no hay presupuesto que confirmar en BUDGETED. El
+   * flujo vigente es sendToQuotation() (DRAFT -> OPERATOR_REVIEW_PENDING).
+   * Se conserva sin romperlo por si algo externo aún depende de /submit.
    */
   async submitDraft(orderId: string, clientId: string) {
     const order = await this.findEditableDraft(orderId, clientId);
@@ -306,6 +311,74 @@ export class OrdersService {
     });
 
     await this.notificationsService.send(updatedOrder.id, 'BUDGET_READY');
+
+    return updatedOrder;
+  }
+
+  /**
+   * POST /api/orders/:id/send-to-quotation — Envía el borrador directo a
+   * cotización del operario: DRAFT -> OPERATOR_REVIEW_PENDING. Cubre HU-03.
+   * A diferencia de submitDraft() (legado), aquí no hay presupuesto
+   * automático que confirmar: el pedido pasa directo a que el operario
+   * asignado lo cotice. Requiere al menos un archivo adjunto (400 si no) y
+   * registra client_reviewed_at como el momento del envío del cliente.
+   */
+  async sendToQuotation(orderId: string, clientId: string) {
+    const order = await this.findEditableDraft(orderId, clientId);
+
+    const serviceType = await this.prisma.serviceType.findUnique({
+      where: { id: order.service_type_id },
+    });
+
+    if (!serviceType || !serviceType.is_active) {
+      throw new BadRequestError('Servicio no encontrado o inactivo');
+    }
+
+    const filesCount = await this.prisma.orderFile.count({ where: { order_id: orderId } });
+
+    if (filesCount === 0) {
+      throw new BadRequestError('Debes adjuntar al menos un archivo antes de enviar el pedido a cotización');
+    }
+
+    const requiredSpecialty = mapPricingModelToSpecialty(serviceType.pricing_model);
+
+    const operator = await this.prisma.operator.findFirst({
+      where: {
+        is_active: true,
+        specialties: {
+          some: {
+            specialty: requiredSpecialty,
+          },
+        },
+      },
+      orderBy: {
+        created_at: 'asc',
+      },
+      select: {
+        id: true,
+        user_id: true,
+      },
+    });
+
+    if (!operator) {
+      throw new ConflictError(`No hay operarios disponibles con la especialidad ${requiredSpecialty}`);
+    }
+
+    const updatedOrder = await this.prisma.order.update({
+      where: { id: orderId },
+      data: {
+        status: 'OPERATOR_REVIEW_PENDING',
+        operator_id: operator.id,
+        client_reviewed_at: new Date(),
+      },
+      include: orderWithOperatorInclude,
+    });
+
+    await this.notificationsService.notifyOperatorInApp(
+      updatedOrder.id,
+      operator.user_id,
+      'ORDER_SENT_TO_QUOTATION'
+    );
 
     return updatedOrder;
   }

@@ -39,7 +39,9 @@ export class OrdersService {
     volume?: number;
     notes?: string;
   }) {
-    const { service_type_id, material_id, quantity, area, volume, notes } = data;
+    // quantity/area/volume siguen siendo aceptados como opcionales por compatibilidad
+    // de API, pero ya no se usan aquí: el precio no se calcula en create().
+    const { service_type_id, material_id, notes } = data;
 
     // 1. Validar RN#6: Un cliente no puede tener dos pedidos del mismo tipo de servicio en estado 'IN_PROGRESS' simultáneamente
     const activeOrder = await this.prisma.order.findFirst({
@@ -76,27 +78,11 @@ export class OrdersService {
       throw new BadRequestError('No hay un material disponible para este servicio');
     }
 
-    // 3. Precio estimado preliminar según PricingModel.
-    // El cliente no indica cantidades; se asume 1 unidad/medida como base y el
-    // operario define el precio real durante la revisión (OPERATOR_REVIEW_PENDING).
-    let estimatedPrice = new Prisma.Decimal(0);
-
-    switch (serviceType.pricing_model) {
-      case 'FIXED':
-        estimatedPrice = material.unit_price;
-        break;
-      case 'PER_M2':
-        estimatedPrice = material.unit_price.mul(area ?? 1);
-        break;
-      case 'PER_UNIT':
-        estimatedPrice = material.unit_price.mul(quantity ?? 1);
-        break;
-      case 'PER_VOLUME':
-        estimatedPrice = material.unit_price.mul(volume ?? 1);
-        break;
-      default:
-        throw new BadRequestError('Modelo de precios no soportado');
-    }
+    // 3. El pedido nace en DRAFT sin presupuesto: ya no se calcula un precio
+    // automático a partir de pricing_model/cantidad/área/volumen en create().
+    // El catálogo (material.unit_price, pricing_model) se conserva como
+    // referencia para cuando el operario defina el precio real en la revisión.
+    const estimatedPrice = new Prisma.Decimal(0);
 
     // 4. Determinar Condición de Pago según is_frequent
     const user = await this.prisma.user.findUnique({
@@ -105,9 +91,9 @@ export class OrdersService {
     });
 
     const payment_condition = user?.is_frequent ? 'CASH_ON_DELIVERY' : 'ADVANCE_50';
-    
-    // 5. Calcular monto de adelanto si aplica
-    const advance_amount = calculateAdvanceAmount(payment_condition, estimatedPrice);
+
+    // 5. Sin precio aún no hay adelanto que calcular: final_price y advance_amount
+    // quedan sin definir hasta que el operario fije el precio real (son nullable).
 
     // 6. Fijar expiración del presupuesto (ahora + 24h). Se recalcula al enviar
     // el borrador, que es cuando el presupuesto empieza a correr de verdad.
@@ -116,8 +102,9 @@ export class OrdersService {
     const estimated_delivery_at = calculateEstimatedDeliveryAt(serviceType.pricing_model);
 
     // 7. Crear el pedido como BORRADOR. Mientras esté en DRAFT el cliente puede
-    // editarlo (PATCH) o eliminarlo (DELETE). La asignación de operario y la
-    // notificación BUDGET_READY ocurren al enviarlo (submitDraft).
+    // editarlo (PATCH) o eliminarlo (DELETE). La asignación de operario, el
+    // precio real y la notificación BUDGET_READY ocurren al enviarlo (submitDraft)
+    // o durante la revisión del operario.
     const order = await this.prisma.order.create({
       data: {
         client_id: clientId,
@@ -126,8 +113,6 @@ export class OrdersService {
         status: 'DRAFT',
         payment_condition,
         estimated_price: estimatedPrice,
-        final_price: estimatedPrice,
-        advance_amount,
         budget_expires_at,
         estimated_delivery_at,
         notes,

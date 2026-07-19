@@ -40,29 +40,29 @@ describe('OrdersService (Unit with Dependency Injection)', () => {
       await expect(ordersService.create(clientId, baseData)).rejects.toThrow(NotFoundError);
     });
 
-    it('should calculate estimatedPrice correctly for PER_UNIT and create order', async () => {
+    it('should create the order as DRAFT with no automatic price calculation', async () => {
       prismaMock.order.findFirst.mockResolvedValueOnce(null);
       prismaMock.serviceType.findUnique.mockResolvedValueOnce({ id: 'st-1', pricing_model: 'PER_UNIT', is_active: true } as any);
-      prismaMock.material.findUnique.mockResolvedValueOnce({ 
-        id: 'mat-1', 
-        unit_price: new Prisma.Decimal(5.5), 
-        is_active: true, 
-        service_type_id: 'st-1' 
+      prismaMock.material.findUnique.mockResolvedValueOnce({
+        id: 'mat-1',
+        unit_price: new Prisma.Decimal(5.5),
+        is_active: true,
+        service_type_id: 'st-1'
       } as any);
 
       prismaMock.user.findUnique.mockResolvedValueOnce({ is_frequent: false } as any);
-      prismaMock.operator.findFirst.mockResolvedValueOnce({ id: 'op-1' } as any);
-
       prismaMock.order.create.mockResolvedValueOnce({ id: 'new-order' } as any);
 
       const result = await ordersService.create(clientId, baseData);
 
       expect(prismaMock.order.create).toHaveBeenCalled();
       const callArgs = prismaMock.order.create.mock.calls[0][0];
-      
-      expect(callArgs.data.estimated_price).toEqual(new Prisma.Decimal(55)); // 5.5 * 10
+
+      // El precio ya no se calcula en create(): nace en 0, sin adelanto ni precio final.
+      expect(callArgs.data.estimated_price).toEqual(new Prisma.Decimal(0));
+      expect(callArgs.data.advance_amount).toBeUndefined();
+      expect(callArgs.data.final_price).toBeUndefined();
       expect(callArgs.data.payment_condition).toBe('ADVANCE_50'); // Since is_frequent = false
-      expect(callArgs.data.advance_amount).toEqual(new Prisma.Decimal(27.5));
       expect(result.id).toBe('new-order');
 
       // El pedido nace como borrador: sin operario asignado ni notificación.
@@ -71,26 +71,42 @@ describe('OrdersService (Unit with Dependency Injection)', () => {
       expect(notificationsMock.send).not.toHaveBeenCalled();
     });
 
+    it('should ignore quantity/area/volume and not branch on pricing_model (switch removed)', async () => {
+      prismaMock.order.findFirst.mockResolvedValueOnce(null);
+      prismaMock.serviceType.findUnique.mockResolvedValueOnce({ id: 'st-1', pricing_model: 'PER_VOLUME', is_active: true } as any);
+      prismaMock.material.findUnique.mockResolvedValueOnce({
+        id: 'mat-1',
+        unit_price: new Prisma.Decimal(999),
+        is_active: true,
+        service_type_id: 'st-1'
+      } as any);
+      prismaMock.user.findUnique.mockResolvedValueOnce({ is_frequent: false } as any);
+      prismaMock.order.create.mockResolvedValueOnce({ id: 'new-order' } as any);
+
+      await ordersService.create(clientId, { ...baseData, quantity: 999, area: 999, volume: 999 });
+
+      const callArgs = prismaMock.order.create.mock.calls[0][0];
+      expect(callArgs.data.estimated_price).toEqual(new Prisma.Decimal(0));
+    });
+
     it('should set CASH_ON_DELIVERY for frequent users', async () => {
       prismaMock.order.findFirst.mockResolvedValueOnce(null);
       prismaMock.serviceType.findUnique.mockResolvedValueOnce({ id: 'st-1', pricing_model: 'FIXED', is_active: true } as any);
-      prismaMock.material.findUnique.mockResolvedValueOnce({ 
-        id: 'mat-1', 
-        unit_price: new Prisma.Decimal(100), 
-        is_active: true, 
-        service_type_id: 'st-1' 
+      prismaMock.material.findUnique.mockResolvedValueOnce({
+        id: 'mat-1',
+        unit_price: new Prisma.Decimal(100),
+        is_active: true,
+        service_type_id: 'st-1'
       } as any);
 
       prismaMock.user.findUnique.mockResolvedValueOnce({ is_frequent: true } as any);
-      prismaMock.operator.findFirst.mockResolvedValueOnce({ id: 'op-1' } as any);
-
       prismaMock.order.create.mockResolvedValueOnce({ id: 'new-order' } as any);
 
       await ordersService.create(clientId, baseData);
 
       const callArgs = prismaMock.order.create.mock.calls[0][0];
       expect(callArgs.data.payment_condition).toBe('CASH_ON_DELIVERY');
-      expect(callArgs.data.advance_amount).toBeNull();
+      expect(callArgs.data.advance_amount).toBeUndefined();
     });
   });
 

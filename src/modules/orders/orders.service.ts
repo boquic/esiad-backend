@@ -1,5 +1,6 @@
 import { Prisma, PrismaClient, FileType, PricingModel, Specialty } from '@prisma/client';
 import path from 'path';
+import { promises as fs } from 'fs';
 import { ENV } from '../../config/env';
 import { NotificationsService } from '../notifications/notifications.service';
 import { BadRequestError, NotFoundError, ConflictError, ForbiddenError } from '../../utils/errors';
@@ -32,7 +33,7 @@ export class OrdersService {
   ) {}
   async create(clientId: string, data: {
     service_type_id: string;
-    material_id: string;
+    material_id?: string;
     quantity?: number;
     area?: number;
     volume?: number;
@@ -62,15 +63,22 @@ export class OrdersService {
       throw new NotFoundError('Servicio no encontrado o inactivo');
     }
 
-    const material = await this.prisma.material.findUnique({
-      where: { id: material_id },
-    });
+    // El cliente ya no elige material: si no se envía, se toma el material activo
+    // por defecto del servicio. El operario lo ajusta en la revisión del pedido.
+    const material = material_id
+      ? await this.prisma.material.findUnique({ where: { id: material_id } })
+      : await this.prisma.material.findFirst({
+          where: { service_type_id, is_active: true },
+          orderBy: { name: 'asc' },
+        });
 
     if (!material || !material.is_active || material.service_type_id !== service_type_id) {
-      throw new BadRequestError('Material no encontrado, inactivo o no pertenece al servicio');
+      throw new BadRequestError('No hay un material disponible para este servicio');
     }
 
-    // 3. Calcular Precio Estimado según PricingModel
+    // 3. Precio estimado preliminar según PricingModel.
+    // El cliente no indica cantidades; se asume 1 unidad/medida como base y el
+    // operario define el precio real durante la revisión (OPERATOR_REVIEW_PENDING).
     let estimatedPrice = new Prisma.Decimal(0);
 
     switch (serviceType.pricing_model) {
@@ -78,16 +86,13 @@ export class OrdersService {
         estimatedPrice = material.unit_price;
         break;
       case 'PER_M2':
-        if (!area) throw new BadRequestError('El área es requerida para este servicio');
-        estimatedPrice = material.unit_price.mul(area);
+        estimatedPrice = material.unit_price.mul(area ?? 1);
         break;
       case 'PER_UNIT':
-        if (!quantity) throw new BadRequestError('La cantidad es requerida para este servicio');
-        estimatedPrice = material.unit_price.mul(quantity);
+        estimatedPrice = material.unit_price.mul(quantity ?? 1);
         break;
       case 'PER_VOLUME':
-        if (!volume) throw new BadRequestError('El volumen es requerido para este servicio');
-        estimatedPrice = material.unit_price.mul(volume);
+        estimatedPrice = material.unit_price.mul(volume ?? 1);
         break;
       default:
         throw new BadRequestError('Modelo de precios no soportado');
@@ -104,10 +109,181 @@ export class OrdersService {
     // 5. Calcular monto de adelanto si aplica
     const advance_amount = calculateAdvanceAmount(payment_condition, estimatedPrice);
 
-    // 6. Fijar expiración del presupuesto (ahora + 24h)
+    // 6. Fijar expiración del presupuesto (ahora + 24h). Se recalcula al enviar
+    // el borrador, que es cuando el presupuesto empieza a correr de verdad.
     const budget_expires_at = new Date();
     budget_expires_at.setHours(budget_expires_at.getHours() + 24);
     const estimated_delivery_at = calculateEstimatedDeliveryAt(serviceType.pricing_model);
+
+    // 7. Crear el pedido como BORRADOR. Mientras esté en DRAFT el cliente puede
+    // editarlo (PATCH) o eliminarlo (DELETE). La asignación de operario y la
+    // notificación BUDGET_READY ocurren al enviarlo (submitDraft).
+    const order = await this.prisma.order.create({
+      data: {
+        client_id: clientId,
+        service_type_id,
+        material_id: material.id,
+        status: 'DRAFT',
+        payment_condition,
+        estimated_price: estimatedPrice,
+        final_price: estimatedPrice,
+        advance_amount,
+        budget_expires_at,
+        estimated_delivery_at,
+        notes,
+      },
+      include: orderWithOperatorInclude,
+    });
+
+    return order;
+  }
+
+  /**
+   * Devuelve el pedido validando que exista, que pertenezca al cliente y que
+   * siga en estado DRAFT. Es la guarda común de PATCH, DELETE y submit.
+   */
+  private async findEditableDraft(orderId: string, clientId: string) {
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+    });
+
+    if (!order) {
+      throw new NotFoundError('Pedido no encontrado');
+    }
+
+    if (order.client_id !== clientId) {
+      throw new ForbiddenError('No tienes permiso para modificar este pedido');
+    }
+
+    if (order.status !== 'DRAFT') {
+      throw new BadRequestError(
+        `Solo se pueden modificar pedidos en estado borrador. Estado actual: ${order.status}`
+      );
+    }
+
+    return order;
+  }
+
+  /**
+   * PATCH /api/orders/:id — Edita notas y/o tipo de servicio de un borrador.
+   * Al cambiar el servicio se reasigna el material por defecto y se recalcula
+   * el precio preliminar y la fecha estimada de entrega.
+   */
+  async update(
+    orderId: string,
+    clientId: string,
+    data: { service_type_id?: string; notes?: string | null }
+  ) {
+    const order = await this.findEditableDraft(orderId, clientId);
+    const { service_type_id, notes } = data;
+
+    if (service_type_id === undefined && notes === undefined) {
+      throw new BadRequestError('No se enviaron campos para actualizar');
+    }
+
+    const updateData: Prisma.OrderUpdateInput = {};
+
+    if (notes !== undefined) {
+      const trimmed = typeof notes === 'string' ? notes.trim() : null;
+      updateData.notes = trimmed ? trimmed : null;
+    }
+
+    if (service_type_id !== undefined && service_type_id !== order.service_type_id) {
+      const serviceType = await this.prisma.serviceType.findUnique({
+        where: { id: service_type_id },
+      });
+
+      if (!serviceType || !serviceType.is_active) {
+        throw new BadRequestError('Servicio no encontrado o inactivo');
+      }
+
+      const material = await this.prisma.material.findFirst({
+        where: { service_type_id, is_active: true },
+        orderBy: { name: 'asc' },
+      });
+
+      if (!material) {
+        throw new BadRequestError('No hay un material disponible para este servicio');
+      }
+
+      const estimatedPrice =
+        serviceType.pricing_model === 'FIXED' ? material.unit_price : material.unit_price.mul(1);
+
+      updateData.service_type = { connect: { id: service_type_id } };
+      updateData.material = { connect: { id: material.id } };
+      updateData.estimated_price = estimatedPrice;
+      updateData.final_price = estimatedPrice;
+      updateData.advance_amount = calculateAdvanceAmount(order.payment_condition, estimatedPrice);
+      updateData.estimated_delivery_at = calculateEstimatedDeliveryAt(serviceType.pricing_model);
+    }
+
+    return await this.prisma.order.update({
+      where: { id: orderId },
+      data: updateData,
+      include: orderWithOperatorInclude,
+    });
+  }
+
+  /**
+   * DELETE /api/orders/:id — Borrado físico de un borrador junto con sus
+   * archivos (registros en BD y ficheros en disco). Solo aplica en DRAFT, por
+   * lo que nunca hay pagos ni notificaciones asociadas que arrastrar.
+   */
+  async remove(orderId: string, clientId: string) {
+    await this.findEditableDraft(orderId, clientId);
+
+    const files = await this.prisma.orderFile.findMany({
+      where: { order_id: orderId },
+      select: { file_url: true },
+    });
+
+    await this.prisma.$transaction([
+      this.prisma.orderFile.deleteMany({ where: { order_id: orderId } }),
+      this.prisma.order.delete({ where: { id: orderId } }),
+    ]);
+
+    // Los ficheros en disco se borran después de confirmar la transacción.
+    const uploadsRoot = path.resolve(process.cwd(), ENV.UPLOAD_PATH);
+
+    for (const file of files) {
+      const relativePath = file.file_url.replace(/^\/+/, '').replace(/\//g, path.sep);
+      const absolutePath = path.resolve(process.cwd(), relativePath);
+
+      if (!absolutePath.startsWith(uploadsRoot)) {
+        continue;
+      }
+
+      try {
+        await fs.unlink(absolutePath);
+      } catch {
+        // El fichero ya no existe: no es un error para el cliente.
+      }
+    }
+
+    return { id: orderId, deleted: true };
+  }
+
+  /**
+   * Envía un borrador: asigna operario, reinicia la vigencia del presupuesto
+   * y notifica. DRAFT -> BUDGETED.
+   */
+  async submitDraft(orderId: string, clientId: string) {
+    const order = await this.findEditableDraft(orderId, clientId);
+
+    const serviceType = await this.prisma.serviceType.findUnique({
+      where: { id: order.service_type_id },
+    });
+
+    if (!serviceType || !serviceType.is_active) {
+      throw new BadRequestError('Servicio no encontrado o inactivo');
+    }
+
+    const filesCount = await this.prisma.orderFile.count({ where: { order_id: orderId } });
+
+    if (filesCount === 0) {
+      throw new BadRequestError('Debes adjuntar el plano antes de enviar el pedido');
+    }
+
     const requiredSpecialty = mapPricingModelToSpecialty(serviceType.pricing_model);
 
     const operator = await this.prisma.operator.findFirst({
@@ -131,28 +307,22 @@ export class OrdersService {
       throw new ConflictError(`No hay operarios disponibles con la especialidad ${requiredSpecialty}`);
     }
 
-    // 7. Crear el pedido
-    const order = await this.prisma.order.create({
+    const budget_expires_at = new Date();
+    budget_expires_at.setHours(budget_expires_at.getHours() + 24);
+
+    const updatedOrder = await this.prisma.order.update({
+      where: { id: orderId },
       data: {
-        client_id: clientId,
-        operator_id: operator.id,
-        service_type_id,
-        material_id,
         status: 'BUDGETED',
-        payment_condition,
-        estimated_price: estimatedPrice,
-        final_price: estimatedPrice,
-        advance_amount,
+        operator_id: operator.id,
         budget_expires_at,
-        estimated_delivery_at,
-        notes,
       },
       include: orderWithOperatorInclude,
     });
 
-    await this.notificationsService.send(order.id, 'BUDGET_READY');
+    await this.notificationsService.send(updatedOrder.id, 'BUDGET_READY');
 
-    return order;
+    return updatedOrder;
   }
 
   async findByClientId(clientId: string) {

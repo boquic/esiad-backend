@@ -27,6 +27,7 @@ enum PricingModel {
 }
 
 enum OrderStatus {
+  DRAFT
   BUDGETED
   CLIENT_REVIEW_PENDING
   OPERATOR_REVIEW_PENDING

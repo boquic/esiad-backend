@@ -22,6 +22,23 @@ CORS**. A diferencia de plataformas serverless, el backend corre como contenedor
 persistente, así que **tus cron jobs (`node-cron`) funcionan sin cambios** y el
 **volumen de uploads persiste**.
 
+## TO-BE
+
+La arquitectura objetivo separa claramente presentación, lógica de negocio y
+persistencia. El frontend Angular se publica detrás de nginx como único punto de
+entrada para el navegador, mientras que el backend Express queda aislado como un
+servicio persistente con su propia URL pública dentro del stack de Railway. Esta
+disposición mantiene el consumo de la API bajo un mismo origen, reduce problemas
+de CORS y permite que el frontend actúe únicamente como capa de presentación.
+
+El backend conserva su rol de núcleo transaccional del sistema: calcula
+presupuestos, controla el flujo de pedidos, valida pagos, coordina a los
+operarios, emite notificaciones y ejecuta tareas programadas. PostgreSQL se
+mantiene como base de datos privada del proyecto, mientras que las subidas de
+archivos se almacenan en un volumen persistente para evitar pérdidas entre
+despliegues. Con esto, el entorno productivo queda más desacoplado, escalable y
+alineado con un despliegue real en producción.
+
 ## Requisitos previos
 
 - Cuenta en Railway.

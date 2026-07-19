@@ -635,16 +635,16 @@ Alternar `is_active` del material (requiere rol `ADMIN`).
 
 ### Descripción
 
-Crear un pedido (requiere rol `CLIENT`). La combinación de campos `quantity` / `area` / `volume` depende del `pricing_model` del servicio.
+Crear un pedido (requiere rol `CLIENT`). El pedido nace en estado `DRAFT`: el cliente solo elige el tipo de servicio y, opcionalmente, escribe notas. `material_id` y las medidas (`quantity` / `area` / `volume`) son opcionales; si no se envían, el backend toma el material activo por defecto del servicio y asume 1 como medida base para el precio preliminar, que el operario ajusta después.
+
+Mientras el pedido siga en `DRAFT` se puede editar (`PATCH /api/orders/:id`) o eliminar (`DELETE /api/orders/:id`). Para enviarlo se usa `POST /api/orders/:id/submit`, que asigna operario, pasa a `BUDGETED` y dispara la notificación `BUDGET_READY`.
 
 ### Request Body
 
 ```json
 {
   "service_type_id": "uuid-service-1",
-  "material_id": "uuid-material-1",
-  "quantity": 10,
-  "notes": "Cortar piezas"
+  "notes": "Escala 50%, indicaciones de corte"
 }
 ```
 
@@ -663,13 +663,13 @@ Crear un pedido (requiere rol `CLIENT`). La combinación de campos `quantity` / 
     "operator_id": null,
     "service_type_id": "uuid-service-1",
     "material_id": "uuid-material-1",
-    "status": "BUDGETED",
+    "status": "DRAFT",
     "payment_condition": "ADVANCE_50",
     "estimated_price": "125.00",
     "advance_amount": "62.50",
     "budget_expires_at": "2026-05-14T12:00:00.000Z",
     "estimated_delivery_at": "2026-05-16T12:00:00.000Z",
-    "notes": "Cortar piezas",
+    "notes": "Escala 50%, indicaciones de corte",
     "created_at": "2026-05-13T12:00:00.000Z",
     "updated_at": "2026-05-13T12:00:00.000Z",
     "service_type": { "id": "uuid-service-1", "name": "Corte Láser", "pricing_model": "PER_UNIT" },
@@ -683,7 +683,7 @@ Crear un pedido (requiere rol `CLIENT`). La combinación de campos `quantity` / 
 ```json
 {
   "error": true,
-  "message": "El tipo de servicio y el material son requeridos"
+  "message": "El tipo de servicio es requerido"
 }
 ```
 
@@ -702,6 +702,154 @@ Crear un pedido (requiere rol `CLIENT`). La combinación de campos `quantity` / 
 {
   "error": true,
   "message": "Error interno del servidor"
+}
+```
+
+---
+
+## PATCH /api/orders/:id
+
+### Descripción
+
+Editar un pedido en borrador (requiere rol `CLIENT`). Solo se permite si el pedido está en estado `DRAFT` y pertenece al usuario autenticado. Se puede enviar `notes`, `service_type_id` o ambos. Al cambiar el servicio se reasigna el material por defecto y se recalculan el precio preliminar, el adelanto y la fecha estimada de entrega.
+
+### Request Body
+
+```json
+{
+  "service_type_id": "uuid-service-2",
+  "notes": "Escala 100%, corte por capas"
+}
+```
+
+### Response 200
+
+```json
+{
+  "data": {
+    "id": "uuid-order-1",
+    "status": "DRAFT",
+    "service_type_id": "uuid-service-2",
+    "material_id": "uuid-material-2",
+    "notes": "Escala 100%, corte por capas",
+    "updated_at": "2026-07-19T12:10:00.000Z",
+    "service_type": { "id": "uuid-service-2", "name": "Ploteo", "pricing_model": "PER_M2" },
+    "material": { "id": "uuid-material-2", "name": "Papel bond A1", "unit_price": "8.00", "unit": "m2" }
+  }
+}
+```
+
+### Response 400
+
+```json
+{
+  "error": true,
+  "message": "Solo se pueden modificar pedidos en estado borrador. Estado actual: BUDGETED"
+}
+```
+
+Otros mensajes 400 posibles: `"No se enviaron campos para actualizar"`, `"Servicio no encontrado o inactivo"`, `"No hay un material disponible para este servicio"`.
+
+### Response 403
+
+```json
+{
+  "error": true,
+  "message": "No tienes permiso para modificar este pedido"
+}
+```
+
+### Response 404
+
+```json
+{
+  "error": true,
+  "message": "Pedido no encontrado"
+}
+```
+
+---
+
+## DELETE /api/orders/:id
+
+### Descripción
+
+Eliminar un pedido en borrador (requiere rol `CLIENT`). Solo se permite si el pedido está en estado `DRAFT` y pertenece al usuario autenticado. El borrado es físico: se eliminan el pedido, sus registros de `order_files` y los ficheros correspondientes en disco.
+
+### Response 200
+
+```json
+{
+  "data": {
+    "id": "uuid-order-1",
+    "deleted": true
+  }
+}
+```
+
+### Response 400
+
+```json
+{
+  "error": true,
+  "message": "Solo se pueden modificar pedidos en estado borrador. Estado actual: IN_PROGRESS"
+}
+```
+
+### Response 403
+
+```json
+{
+  "error": true,
+  "message": "No tienes permiso para modificar este pedido"
+}
+```
+
+### Response 404
+
+```json
+{
+  "error": true,
+  "message": "Pedido no encontrado"
+}
+```
+
+---
+
+## POST /api/orders/:id/submit
+
+### Descripción
+
+Enviar un borrador (requiere rol `CLIENT`). Valida que el pedido esté en `DRAFT`, que pertenezca al usuario y que tenga al menos un plano adjunto. Asigna el operario disponible según la especialidad del servicio, reinicia la vigencia del presupuesto a 24 horas, pasa el estado a `BUDGETED` y envía la notificación `BUDGET_READY`.
+
+### Response 200
+
+```json
+{
+  "data": {
+    "id": "uuid-order-1",
+    "status": "BUDGETED",
+    "operator_id": "uuid-operator-1",
+    "budget_expires_at": "2026-07-20T12:10:00.000Z"
+  }
+}
+```
+
+### Response 400
+
+```json
+{
+  "error": true,
+  "message": "Debes adjuntar el plano antes de enviar el pedido"
+}
+```
+
+### Response 409
+
+```json
+{
+  "error": true,
+  "message": "No hay operarios disponibles con la especialidad LASER"
 }
 ```
 

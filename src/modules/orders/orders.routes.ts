@@ -58,6 +58,19 @@ router.get('/my', authMiddleware, requireRole(['CLIENT']), ordersController.find
 // Ver detalle de un pedido
 router.get('/:id', authMiddleware, requireRole(['CLIENT']), ordersController.findById.bind(ordersController));
 
+// Editar un borrador (solo estado DRAFT y solo el dueño del pedido)
+router.patch('/:id', authMiddleware, requireRole(['CLIENT']), ordersController.update.bind(ordersController));
+
+// Eliminar un borrador (solo estado DRAFT y solo el dueño del pedido)
+router.delete('/:id', authMiddleware, requireRole(['CLIENT']), ordersController.remove.bind(ordersController));
+
+// Enviar el borrador: DRAFT -> BUDGETED
+router.post('/:id/submit',
+  authMiddleware,
+  requireRole(['CLIENT']),
+  ordersController.submitDraft.bind(ordersController)
+);
+
 // Subir plano para un pedido
 router.post('/:id/files',
   authMiddleware,

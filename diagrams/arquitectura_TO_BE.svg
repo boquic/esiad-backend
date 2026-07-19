@@ -1,0 +1,123 @@
+<svg viewBox="0 0 980 700" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="t2 d2" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif">
+  <title id="t2">SIGEPED — Arquitectura TO-BE</title>
+  <desc id="d2">Evolución propuesta: CDN y WAF, load balancer, backend en réplicas, Redis, object storage para uploads, réplica y pooling de PostgreSQL, observabilidad, secretos gestionados, backups y CI/CD con staging.</desc>
+  <defs>
+    <marker id="a2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="#2f8f8a"/>
+    </marker>
+    <style>
+      .t{fill:#1a1a1a;font-weight:700}
+      .s{fill:#555}
+      .m{fill:#6a6a6a}
+      .hoy{fill:rgba(55,160,110,0.12);stroke:#37a06e;stroke-width:1.6}
+      .plan{fill:rgba(224,147,47,0.12);stroke:#e0932f;stroke-width:1.6;stroke-dasharray:6 4}
+      .flow{stroke:#2f8f8a;stroke-width:2;fill:none}
+      .link{stroke:#e0932f;stroke-width:1.4;fill:none;stroke-dasharray:2 4}
+      .ico{dominant-baseline:middle}
+    </style>
+  </defs>
+
+  <rect x="0" y="0" width="980" height="700" fill="#f7f9f9"/>
+
+  <text x="40" y="40" class="t" font-size="23">SIGEPED · Arquitectura TO-BE</text>
+  <text x="41" y="63" class="s" font-size="13.5">Evolución propuesta: escala horizontal, resiliencia y observabilidad</text>
+
+  <circle cx="712" cy="34" r="7" fill="rgba(55,160,110,0.5)" stroke="#37a06e"/>
+  <text x="724" y="38" class="s" font-size="12">Hoy</text>
+  <rect x="772" y="27" width="14" height="14" rx="3" fill="rgba(224,147,47,0.15)" stroke="#e0932f" stroke-dasharray="4 3"/>
+  <text x="792" y="38" class="s" font-size="12">Propuesto</text>
+
+  <rect x="325" y="92" width="210" height="50" rx="12" class="hoy"/>
+  <text x="345" y="122" font-size="20" class="ico">👤</text>
+  <text x="375" y="122" class="t" font-size="13">Usuarios</text>
+
+  <rect x="325" y="166" width="210" height="50" rx="12" class="plan"/>
+  <text x="343" y="196" font-size="18" class="ico">🌍</text>
+  <text x="370" y="192" class="t" font-size="12.5">CDN + WAF</text>
+  <text x="370" y="207" class="m" font-size="10.5">rate-limit en el borde</text>
+
+  <rect x="325" y="240" width="210" height="50" rx="12" class="hoy"/>
+  <text x="343" y="270" font-size="18" class="ico">🅰️</text>
+  <text x="370" y="266" class="t" font-size="12.5">Frontend Angular</text>
+  <text x="370" y="281" class="m" font-size="10.5">nginx · SPA</text>
+
+  <rect x="325" y="314" width="210" height="50" rx="12" class="plan"/>
+  <text x="343" y="344" font-size="18" class="ico">⚖️</text>
+  <text x="370" y="344" class="t" font-size="12.5">Load balancer</text>
+
+  <rect x="325" y="388" width="210" height="96" rx="12" class="hoy"/>
+  <text x="345" y="420" font-size="18" class="ico">⚙️</text>
+  <text x="375" y="416" class="t" font-size="13">Backend ×N réplicas</text>
+  <text x="375" y="432" class="m" font-size="10.5">Express · 2FA · JWT</text>
+  <text x="345" y="462" class="m" font-size="10.5">escalado horizontal (propuesto)</text>
+
+  <path d="M430 142 L430 166" class="flow" marker-end="url(#a2)"/>
+  <path d="M430 216 L430 240" class="flow" marker-end="url(#a2)"/>
+  <path d="M430 290 L430 314" class="flow" marker-end="url(#a2)"/>
+  <text x="440" y="306" fill="#2f8f8a" font-size="10" font-weight="600">/api</text>
+  <path d="M430 364 L430 388" class="flow" marker-end="url(#a2)"/>
+
+  <path d="M535 436 H575 V119" class="flow"/>
+  <path d="M575 119 H600" class="flow" marker-end="url(#a2)"/>
+  <path d="M575 207 H600" class="flow" marker-end="url(#a2)"/>
+  <path d="M575 295 H600" class="flow" marker-end="url(#a2)"/>
+  <path d="M575 383 H600" class="flow" marker-end="url(#a2)"/>
+
+  <rect x="600" y="90" width="350" height="58" rx="12" class="plan"/>
+  <text x="618" y="122" font-size="18" class="ico">🐘</text>
+  <text x="645" y="115" class="t" font-size="12.5">PostgreSQL</text>
+  <text x="645" y="131" class="m" font-size="10.5">+ réplica lectura · pooling</text>
+
+  <rect x="600" y="178" width="350" height="58" rx="12" class="plan"/>
+  <text x="618" y="210" font-size="18" class="ico">⚡</text>
+  <text x="645" y="203" class="t" font-size="12.5">Redis</text>
+  <text x="645" y="219" class="m" font-size="10.5">caché · rate-limit · sesiones</text>
+
+  <rect x="600" y="266" width="350" height="58" rx="12" class="plan"/>
+  <text x="618" y="298" font-size="18" class="ico">🗄️</text>
+  <text x="645" y="291" class="t" font-size="12.5">Object storage (S3/R2)</text>
+  <text x="645" y="307" class="m" font-size="10.5">uploads · reemplaza volumen</text>
+
+  <rect x="600" y="354" width="350" height="58" rx="12" class="hoy"/>
+  <text x="618" y="386" font-size="18" class="ico">💬</text>
+  <text x="645" y="379" class="t" font-size="12.5">Twilio · WhatsApp</text>
+  <text x="645" y="395" class="m" font-size="10.5">notificaciones</text>
+
+  <rect x="30" y="166" width="250" height="58" rx="12" class="plan"/>
+  <text x="48" y="198" font-size="18" class="ico">📈</text>
+  <text x="76" y="191" class="t" font-size="12.5">Observabilidad</text>
+  <text x="76" y="207" class="m" font-size="10.5">logs · métricas · alertas</text>
+
+  <rect x="30" y="254" width="250" height="58" rx="12" class="plan"/>
+  <text x="48" y="286" font-size="18" class="ico">🔑</text>
+  <text x="76" y="286" class="t" font-size="12.5">Secretos gestionados</text>
+
+  <rect x="30" y="342" width="250" height="58" rx="12" class="plan"/>
+  <text x="48" y="374" font-size="18" class="ico">💾</text>
+  <text x="76" y="367" class="t" font-size="12.5">Backups / DR</text>
+  <text x="76" y="383" class="m" font-size="10.5">PostgreSQL</text>
+
+  <path d="M280 195 C305 195 305 430 325 434" class="link"/>
+  <path d="M280 283 C305 283 308 434 325 440" class="link"/>
+  <path d="M280 371 C305 371 310 440 325 446" class="link"/>
+
+  <text x="40" y="536" class="t" font-size="13">CI/CD con entorno de staging</text>
+  <rect x="40" y="548" width="200" height="60" rx="12" class="hoy"/>
+  <text x="60" y="582" font-size="19" class="ico">🐙</text>
+  <text x="90" y="582" class="t" font-size="12.5">GitHub</text>
+  <path d="M240 578 H268" class="flow" marker-end="url(#a2)"/>
+  <rect x="268" y="548" width="200" height="60" rx="12" class="hoy"/>
+  <text x="288" y="582" font-size="19" class="ico">🔁</text>
+  <text x="318" y="576" class="t" font-size="12.5">GitHub Actions</text>
+  <text x="318" y="592" class="m" font-size="10.5">tests + build</text>
+  <path d="M468 578 H496" class="flow" marker-end="url(#a2)"/>
+  <rect x="496" y="548" width="200" height="60" rx="12" class="plan"/>
+  <text x="516" y="582" font-size="19" class="ico">🧪</text>
+  <text x="546" y="582" class="t" font-size="12.5">Staging</text>
+  <path d="M696 578 H724" class="flow" marker-end="url(#a2)"/>
+  <rect x="724" y="548" width="216" height="60" rx="12" class="hoy"/>
+  <text x="744" y="582" font-size="19" class="ico">🚀</text>
+  <text x="774" y="582" class="t" font-size="12.5">Producción (Railway)</text>
+
+  <text x="40" y="648" class="m" font-size="11">Prioridad de evolución: rate-limit · object storage para uploads · réplica/pool de DB · observabilidad.</text>
+</svg>

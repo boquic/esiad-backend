@@ -1,0 +1,111 @@
+<svg viewBox="0 0 900 690" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="ttl dsc" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif">
+  <title id="ttl">SIGEPED — Arquitectura AS-IS</title>
+  <desc id="dsc">Estado actual: app desplegada en Railway con frontend Angular tras nginx, backend Express con 2FA, PostgreSQL, volúmenes, y pipeline CI/CD desde GitHub.</desc>
+
+  <defs>
+    <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="#2f8f8a"/>
+    </marker>
+    <style>
+      .t{fill:#1a1a1a;font-weight:700}
+      .s{fill:#555}
+      .m{fill:#666}
+      .box{fill:#ffffff;stroke:#c8ccd0}
+      .flow{stroke:#2f8f8a;stroke-width:2;fill:none}
+      .flbl{fill:#2f8f8a;font-weight:600}
+      .ico{dominant-baseline:middle}
+      .pill{fill:rgba(55,160,110,0.14);stroke:#37a06e}
+    </style>
+  </defs>
+
+  <rect x="0" y="0" width="900" height="690" fill="#f7f9f9"/>
+
+  <text x="46" y="42" class="t" font-size="24">SIGEPED · Arquitectura AS-IS</text>
+  <text x="47" y="66" class="s" font-size="14">Desplegado y operativo en Railway · login con 2FA funcionando en producción</text>
+
+  <rect x="115" y="92" width="150" height="58" rx="12" class="box" stroke-width="1.5"/>
+  <text x="135" y="126" font-size="24" class="ico">👤</text>
+  <text x="168" y="116" class="t" font-size="13">Usuario</text>
+  <text x="168" y="134" class="m" font-size="11">Navegador web</text>
+
+  <path d="M190 150 L190 236" class="flow" marker-end="url(#ah)"/>
+  <text x="200" y="196" class="flbl" font-size="11">HTTPS</text>
+
+  <rect x="58" y="236" width="784" height="228" rx="16" fill="none" stroke="#2f8f8a" stroke-width="1.6" stroke-dasharray="7 5"/>
+  <text x="80" y="262" font-size="18" class="ico">🚂</text>
+  <text x="104" y="262" class="t" font-size="14">Railway · Producción</text>
+
+  <rect x="95" y="284" width="200" height="150" rx="13" class="box" stroke-width="1.5"/>
+  <text x="115" y="322" font-size="26" class="ico">🅰️</text>
+  <text x="150" y="316" class="t" font-size="14">Frontend</text>
+  <text x="150" y="334" class="m" font-size="11">Angular SPA</text>
+  <line x1="115" y1="350" x2="275" y2="350" stroke="#e2e5e8"/>
+  <text x="115" y="376" font-size="15" class="ico">🔀</text>
+  <text x="138" y="376" class="s" font-size="11.5">nginx reverse proxy</text>
+  <text x="115" y="402" font-size="15" class="ico">🌐</text>
+  <text x="138" y="402" class="s" font-size="11.5">mismo-origen · sin CORS</text>
+
+  <rect x="350" y="284" width="200" height="150" rx="13" class="box" stroke-width="1.5"/>
+  <text x="370" y="322" font-size="26" class="ico">⚙️</text>
+  <text x="405" y="316" class="t" font-size="14">Backend</text>
+  <text x="405" y="334" class="m" font-size="11">Node · Express</text>
+  <line x1="370" y1="350" x2="530" y2="350" stroke="#e2e5e8"/>
+  <text x="370" y="376" font-size="14" class="ico">🔐</text>
+  <text x="392" y="376" class="s" font-size="11.5">2FA TOTP · JWT</text>
+  <text x="370" y="402" font-size="14" class="ico">⏱️</text>
+  <text x="392" y="402" class="s" font-size="11.5">cron · migraciones</text>
+
+  <rect x="605" y="284" width="200" height="150" rx="13" class="box" stroke-width="1.5"/>
+  <text x="625" y="322" font-size="26" class="ico">🐘</text>
+  <text x="660" y="316" class="t" font-size="14">PostgreSQL</text>
+  <text x="660" y="334" class="m" font-size="11">Gestionado</text>
+  <line x1="625" y1="350" x2="785" y2="350" stroke="#e2e5e8"/>
+  <text x="625" y="376" font-size="14" class="ico">📦</text>
+  <text x="647" y="376" class="s" font-size="11.5">volumen persistente</text>
+  <text x="625" y="402" font-size="14" class="ico">🔒</text>
+  <text x="647" y="402" class="s" font-size="11.5">red privada</text>
+
+  <path d="M295 340 L350 340" class="flow" marker-end="url(#ah)"/>
+  <text x="300" y="332" class="flbl" font-size="10.5">/api</text>
+  <path d="M550 340 L605 340" class="flow" marker-end="url(#ah)"/>
+  <text x="556" y="332" class="flbl" font-size="10.5">SQL</text>
+
+  <text x="352" y="452" class="m" font-size="11">📁 uploads → volumen /app/uploads (persistente)</text>
+
+  <text x="58" y="506" class="t" font-size="13">Entrega continua y calidad</text>
+
+  <rect x="58" y="518" width="176" height="66" rx="12" class="box" stroke-width="1.5"/>
+  <text x="78" y="552" font-size="22" class="ico">🐙</text>
+  <text x="108" y="546" class="t" font-size="12.5">GitHub</text>
+  <text x="108" y="563" class="m" font-size="10.5">2 repos</text>
+  <path d="M234 551 L272 551" class="flow" marker-end="url(#ah)"/>
+  <rect x="272" y="518" width="196" height="66" rx="12" class="box" stroke-width="1.5"/>
+  <text x="292" y="552" font-size="22" class="ico">🔁</text>
+  <text x="322" y="546" class="t" font-size="12.5">GitHub Actions</text>
+  <text x="322" y="563" class="m" font-size="10.5">tests + docker build</text>
+  <path d="M468 551 L506 551" class="flow" marker-end="url(#ah)"/>
+  <rect x="506" y="518" width="176" height="66" rx="12" class="box" stroke-width="1.5"/>
+  <text x="526" y="552" font-size="22" class="ico">🚀</text>
+  <text x="556" y="546" class="t" font-size="12.5">Auto-deploy</text>
+  <text x="556" y="563" class="m" font-size="10.5">en cada push</text>
+  <rect x="700" y="518" width="142" height="66" rx="12" class="box" stroke-width="1.5"/>
+  <text x="718" y="545" font-size="15" class="ico">🐳</text>
+  <text x="740" y="545" class="s" font-size="11">Docker</text>
+  <text x="718" y="568" font-size="15" class="ico">📊</text>
+  <text x="740" y="568" class="s" font-size="11">k6 pruebas</text>
+
+  <g font-size="11.5">
+    <rect x="58" y="614" width="118" height="30" rx="15" class="pill"/>
+    <text x="72" y="633" class="t">✅ Dockerizado</text>
+    <rect x="184" y="614" width="112" height="30" rx="15" class="pill"/>
+    <text x="198" y="633" class="t">✅ Sin CORS</text>
+    <rect x="304" y="614" width="96" height="30" rx="15" class="pill"/>
+    <text x="318" y="633" class="t">✅ 2FA</text>
+    <rect x="408" y="614" width="104" height="30" rx="15" class="pill"/>
+    <text x="422" y="633" class="t">✅ CI/CD</text>
+    <rect x="520" y="614" width="126" height="30" rx="15" class="pill"/>
+    <text x="534" y="633" class="t">✅ 21/21 tests</text>
+    <rect x="654" y="614" width="150" height="30" rx="15" class="pill"/>
+    <text x="668" y="633" class="t">✅ En producción</text>
+  </g>
+</svg>

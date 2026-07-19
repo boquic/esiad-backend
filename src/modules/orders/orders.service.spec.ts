@@ -2,7 +2,7 @@ import { PrismaClient } from '@prisma/client';
 import { mockDeep, DeepMockProxy } from 'jest-mock-extended';
 import { OrdersService } from './orders.service';
 import { NotificationsService } from '../notifications/notifications.service';
-import { BadRequestError, ConflictError, NotFoundError } from '../../utils/errors';
+import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from '../../utils/errors';
 import { Prisma } from '@prisma/client';
 
 describe('OrdersService (Unit with Dependency Injection)', () => {
@@ -64,8 +64,11 @@ describe('OrdersService (Unit with Dependency Injection)', () => {
       expect(callArgs.data.payment_condition).toBe('ADVANCE_50'); // Since is_frequent = false
       expect(callArgs.data.advance_amount).toEqual(new Prisma.Decimal(27.5));
       expect(result.id).toBe('new-order');
-      
-      expect(notificationsMock.send).toHaveBeenCalledWith('new-order', 'BUDGET_READY');
+
+      // El pedido nace como borrador: sin operario asignado ni notificación.
+      expect(callArgs.data.status).toBe('DRAFT');
+      expect(callArgs.data.operator_id).toBeUndefined();
+      expect(notificationsMock.send).not.toHaveBeenCalled();
     });
 
     it('should set CASH_ON_DELIVERY for frequent users', async () => {
@@ -88,6 +91,148 @@ describe('OrdersService (Unit with Dependency Injection)', () => {
       const callArgs = prismaMock.order.create.mock.calls[0][0];
       expect(callArgs.data.payment_condition).toBe('CASH_ON_DELIVERY');
       expect(callArgs.data.advance_amount).toBeNull();
+    });
+  });
+
+  describe('draft endpoints (PATCH / DELETE)', () => {
+    const clientId = 'client-1';
+    const draft = {
+      id: 'o1',
+      client_id: clientId,
+      service_type_id: 'st-1',
+      status: 'DRAFT',
+      payment_condition: 'ADVANCE_50',
+    } as any;
+
+    describe('update', () => {
+      it('should throw NotFoundError if the order does not exist', async () => {
+        prismaMock.order.findUnique.mockResolvedValueOnce(null);
+
+        await expect(
+          ordersService.update('o1', clientId, { notes: 'Escala 50%' })
+        ).rejects.toThrow(NotFoundError);
+      });
+
+      it('should throw ForbiddenError if the order belongs to another client', async () => {
+        prismaMock.order.findUnique.mockResolvedValueOnce({ ...draft, client_id: 'other' });
+
+        await expect(
+          ordersService.update('o1', clientId, { notes: 'Escala 50%' })
+        ).rejects.toThrow(ForbiddenError);
+      });
+
+      it('should throw BadRequestError (400) if the order is not DRAFT', async () => {
+        prismaMock.order.findUnique.mockResolvedValueOnce({ ...draft, status: 'IN_PROGRESS' });
+
+        await expect(
+          ordersService.update('o1', clientId, { notes: 'Escala 50%' })
+        ).rejects.toThrow(BadRequestError);
+      });
+
+      it('should throw BadRequestError if no fields were sent', async () => {
+        prismaMock.order.findUnique.mockResolvedValueOnce(draft);
+
+        await expect(ordersService.update('o1', clientId, {})).rejects.toThrow(BadRequestError);
+      });
+
+      it('should update the notes of a draft', async () => {
+        prismaMock.order.findUnique.mockResolvedValueOnce(draft);
+        prismaMock.order.update.mockResolvedValueOnce({ id: 'o1', notes: 'Escala 50%' } as any);
+
+        const result = await ordersService.update('o1', clientId, { notes: '  Escala 50%  ' });
+
+        const callArgs = prismaMock.order.update.mock.calls[0][0];
+        expect(callArgs.data.notes).toBe('Escala 50%');
+        expect(result.id).toBe('o1');
+      });
+
+      it('should reassign material and recalculate price when the service changes', async () => {
+        prismaMock.order.findUnique.mockResolvedValueOnce(draft);
+        prismaMock.serviceType.findUnique.mockResolvedValueOnce({
+          id: 'st-2',
+          pricing_model: 'FIXED',
+          is_active: true,
+        } as any);
+        prismaMock.material.findFirst.mockResolvedValueOnce({
+          id: 'mat-2',
+          unit_price: new Prisma.Decimal(80),
+          is_active: true,
+          service_type_id: 'st-2',
+        } as any);
+        prismaMock.order.update.mockResolvedValueOnce({ id: 'o1' } as any);
+
+        await ordersService.update('o1', clientId, { service_type_id: 'st-2' });
+
+        const callArgs = prismaMock.order.update.mock.calls[0][0];
+        expect(callArgs.data.service_type).toEqual({ connect: { id: 'st-2' } });
+        expect(callArgs.data.material).toEqual({ connect: { id: 'mat-2' } });
+        expect(callArgs.data.estimated_price).toEqual(new Prisma.Decimal(80));
+      });
+    });
+
+    describe('remove', () => {
+      it('should throw BadRequestError (400) if the order is not DRAFT', async () => {
+        prismaMock.order.findUnique.mockResolvedValueOnce({ ...draft, status: 'BUDGETED' });
+
+        await expect(ordersService.remove('o1', clientId)).rejects.toThrow(BadRequestError);
+      });
+
+      it('should throw ForbiddenError if the order belongs to another client', async () => {
+        prismaMock.order.findUnique.mockResolvedValueOnce({ ...draft, client_id: 'other' });
+
+        await expect(ordersService.remove('o1', clientId)).rejects.toThrow(ForbiddenError);
+      });
+
+      it('should physically delete the draft and its files', async () => {
+        prismaMock.order.findUnique.mockResolvedValueOnce(draft);
+        prismaMock.orderFile.findMany.mockResolvedValueOnce([] as any);
+        prismaMock.$transaction.mockResolvedValueOnce([] as any);
+
+        const result = await ordersService.remove('o1', clientId);
+
+        expect(prismaMock.$transaction).toHaveBeenCalled();
+        expect(result).toEqual({ id: 'o1', deleted: true });
+      });
+    });
+
+    describe('submitDraft', () => {
+      it('should throw BadRequestError (400) if the order is not DRAFT', async () => {
+        prismaMock.order.findUnique.mockResolvedValueOnce({ ...draft, status: 'BUDGETED' });
+
+        await expect(ordersService.submitDraft('o1', clientId)).rejects.toThrow(BadRequestError);
+      });
+
+      it('should throw BadRequestError if the draft has no attached file', async () => {
+        prismaMock.order.findUnique.mockResolvedValueOnce(draft);
+        prismaMock.serviceType.findUnique.mockResolvedValueOnce({
+          id: 'st-1',
+          pricing_model: 'PER_UNIT',
+          is_active: true,
+        } as any);
+        prismaMock.orderFile.count.mockResolvedValueOnce(0);
+
+        await expect(ordersService.submitDraft('o1', clientId)).rejects.toThrow(BadRequestError);
+      });
+
+      it('should assign an operator, move it to BUDGETED and notify', async () => {
+        prismaMock.order.findUnique.mockResolvedValueOnce(draft);
+        prismaMock.serviceType.findUnique.mockResolvedValueOnce({
+          id: 'st-1',
+          pricing_model: 'PER_UNIT',
+          is_active: true,
+        } as any);
+        prismaMock.orderFile.count.mockResolvedValueOnce(1);
+        prismaMock.operator.findFirst.mockResolvedValueOnce({ id: 'op-1' } as any);
+        prismaMock.order.update.mockResolvedValueOnce({ id: 'o1', status: 'BUDGETED' } as any);
+
+        const result = await ordersService.submitDraft('o1', clientId);
+
+        const callArgs = prismaMock.order.update.mock.calls[0][0];
+        expect(callArgs.data.status).toBe('BUDGETED');
+        expect(callArgs.data.operator_id).toBe('op-1');
+        expect(result.status).toBe('BUDGETED');
+        expect(notificationsMock.send).toHaveBeenCalledWith('o1', 'BUDGET_READY');
+      });
     });
   });
 

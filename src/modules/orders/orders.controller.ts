@@ -12,8 +12,10 @@ export class OrdersController {
     const clientId = req.user.id as string;
     const { service_type_id, material_id, quantity, area, volume, notes } = req.body;
 
-    if (!service_type_id || !material_id) {
-      throw new BadRequestError('El tipo de servicio y el material son requeridos');
+    // El cliente solo elige el tipo de servicio; material y cantidad son opcionales
+    // y los define/ajusta el operario durante la revisión del pedido.
+    if (!service_type_id) {
+      throw new BadRequestError('El tipo de servicio es requerido');
     }
 
     const order = await ordersService.create(clientId, {
@@ -26,6 +28,37 @@ export class OrdersController {
     });
 
     return res.status(201).json({ data: order });
+  }
+
+  /** PATCH /api/orders/:id — Editar notas y/o servicio de un borrador (solo DRAFT). */
+  async update(req: Request, res: Response): Promise<any> {
+    const clientId = req.user.id as string;
+    const id = req.params.id as string;
+    const { service_type_id, notes } = req.body;
+
+    const order = await ordersService.update(id, clientId, { service_type_id, notes });
+
+    return res.status(200).json({ data: order });
+  }
+
+  /** DELETE /api/orders/:id — Eliminar un borrador (solo DRAFT). */
+  async remove(req: Request, res: Response): Promise<any> {
+    const clientId = req.user.id as string;
+    const id = req.params.id as string;
+
+    const result = await ordersService.remove(id, clientId);
+
+    return res.status(200).json({ data: result });
+  }
+
+  /** POST /api/orders/:id/submit — Enviar el borrador: DRAFT -> BUDGETED. */
+  async submitDraft(req: Request, res: Response): Promise<any> {
+    const clientId = req.user.id as string;
+    const id = req.params.id as string;
+
+    const order = await ordersService.submitDraft(id, clientId);
+
+    return res.status(200).json({ data: order });
   }
 
   async findMyOrders(req: Request, res: Response): Promise<any> {

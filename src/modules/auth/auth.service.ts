@@ -35,10 +35,12 @@ type AuthTokenPayload = {
   is_frequent: boolean;
 };
 
-// Respuesta del paso 1 del login (sin token todavía).
+// Respuesta del paso 1 del login. Para CLIENT (HU-19: sin 2FA) ya viene con
+// el token; para OPERATOR/ADMIN sigue siendo el reto 2FA (sin token todavía).
 type LoginChallenge =
   | { requires_2fa_setup: true; otpauth_url: string; secret: string }
-  | { requires_2fa: true };
+  | { requires_2fa: true }
+  | { user: SafeUser; token: string };
 
 function toSafeUser(user: User): SafeUser {
   const { password_hash: _p, two_factor_secret: _s, ...safe } = user;
@@ -89,9 +91,15 @@ export class AuthService {
     return toSafeUser(newUser);
   }
 
-  // Paso 1: valida credenciales y devuelve el reto 2FA (sin token).
+  // Paso 1: valida credenciales. RULE-01/HU-19: el rol CLIENT omite el 2FA
+  // por completo y recibe el token de una vez, para entrar rapido con solo
+  // DNI + contrasena. OPERATOR y ADMIN mantienen el reto 2FA (DUDA-05).
   async login(data: LoginInput): Promise<LoginChallenge> {
     const user = await this.validateCredentials(data);
+
+    if (user.role === 'CLIENT') {
+      return { user: toSafeUser(user), token: this.issueToken(user) };
+    }
 
     // Usuarios previos a 2FA (seed/migracion) pueden no tener secreto: se provisiona.
     let secret = user.two_factor_secret;
@@ -136,17 +144,19 @@ export class AuthService {
       });
     }
 
+    return { user: toSafeUser(current), token: this.issueToken(current) };
+  }
+
+  private issueToken(user: User): string {
     const payload: AuthTokenPayload = {
-      id: current.id,
-      role: current.role,
-      is_frequent: current.is_frequent,
+      id: user.id,
+      role: user.role,
+      is_frequent: user.is_frequent,
     };
 
-    const token = jwt.sign(payload, ENV.JWT_SECRET, {
+    return jwt.sign(payload, ENV.JWT_SECRET, {
       expiresIn: ENV.JWT_EXPIRES_IN as jwt.SignOptions['expiresIn'],
     });
-
-    return { user: toSafeUser(current), token };
   }
 
   private async validateCredentials({ identifier, password }: LoginInput): Promise<User> {

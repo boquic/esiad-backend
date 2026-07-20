@@ -24,7 +24,9 @@ const orderWithOperatorInclude = {
   }
 } as const;
 
-import { calculateAdvanceAmount, calculateEstimatedDeliveryAt, mapPricingModelToSpecialty } from '../../utils/order.utils';
+import { calculateAdvanceAmount, mapPricingModelToSpecialty } from '../../utils/order.utils';
+// HU-14: estimated_delivery_at deja de calcularse/escribirse desde aquí (columna se conserva
+// en BD por compatibilidad). calculateEstimatedDeliveryAt sigue existiendo en order.utils.
 
 export class OrdersService {
   constructor(
@@ -113,7 +115,7 @@ export class OrdersService {
     // el borrador, que es cuando el presupuesto empieza a correr de verdad.
     const budget_expires_at = new Date();
     budget_expires_at.setHours(budget_expires_at.getHours() + 24);
-    const estimated_delivery_at = calculateEstimatedDeliveryAt(serviceType.pricing_model);
+    // HU-14: ya no se calcula/escribe estimated_delivery_at (RULE-07/08: no comprometer fecha exacta).
 
     // 7. Crear el pedido como BORRADOR. Mientras esté en DRAFT el cliente puede
     // editarlo (PATCH) o eliminarlo (DELETE). La asignación de operario y la
@@ -129,7 +131,6 @@ export class OrdersService {
         final_price: estimatedPrice,
         advance_amount,
         budget_expires_at,
-        estimated_delivery_at,
         notes,
       },
       include: orderWithOperatorInclude,
@@ -167,7 +168,7 @@ export class OrdersService {
   /**
    * PATCH /api/orders/:id — Edita notas y/o tipo de servicio de un borrador.
    * Al cambiar el servicio se reasigna el material por defecto y se recalcula
-   * el precio preliminar y la fecha estimada de entrega.
+   * el precio preliminar.
    */
   async update(
     orderId: string,
@@ -214,7 +215,7 @@ export class OrdersService {
       updateData.estimated_price = estimatedPrice;
       updateData.final_price = estimatedPrice;
       updateData.advance_amount = calculateAdvanceAmount(order.payment_condition, estimatedPrice);
-      updateData.estimated_delivery_at = calculateEstimatedDeliveryAt(serviceType.pricing_model);
+      // HU-14: ya no se recalcula estimated_delivery_at al cambiar el servicio.
     }
 
     return await this.prisma.order.update({

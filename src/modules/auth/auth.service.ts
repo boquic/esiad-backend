@@ -76,7 +76,15 @@ export class AuthService {
       },
     });
 
-    await notificationsService.sendWelcomeMessage(newUser.first_name, newUser.phone);
+    // BUG-01: el usuario YA quedó creado en este punto. El mensaje de bienvenida
+    // es un efecto secundario informativo (WhatsApp/Twilio); si falla (credenciales
+    // mal configuradas, timeout, etc.) no debe hacer fallar el registro ni devolver
+    // un falso "Error interno del servidor" a un registro que sí fue exitoso.
+    try {
+      await notificationsService.sendWelcomeMessage(newUser.first_name, newUser.phone);
+    } catch (error) {
+      console.error('No se pudo enviar el mensaje de bienvenida (registro completado igualmente):', error);
+    }
 
     return toSafeUser(newUser);
   }

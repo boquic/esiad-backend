@@ -91,7 +91,7 @@ function buildSafeOperatorOrder(order: OperatorQueueOrder | OperatorDetailOrder)
     final_price: order.final_price,
     advance_amount: order.advance_amount,
     budget_expires_at: order.budget_expires_at,
-    estimated_delivery_at: order.estimated_delivery_at,
+    // HU-14: estimated_delivery_at deja de exponerse (columna se conserva en BD, pero ya no se usa).
     client_review_notes: order.client_review_notes,
     client_reviewed_at: order.client_reviewed_at,
     operator_reviewed_at: order.operator_reviewed_at,
@@ -160,23 +160,15 @@ export class OperatorsService {
         }
       },
       ...operatorQueueOrderInclude,
+      // HU-14: ya no se prioriza por estimated_delivery_at. Se ordena por orden de
+      // creación (equivalente a "número de pedido" ascendente, ya que no existe
+      // una columna order_number en el esquema).
       orderBy: {
         created_at: 'asc'
       }
     });
 
-    return orders
-      .sort((left, right) => {
-        const leftTime = left.estimated_delivery_at?.getTime() ?? Number.MAX_SAFE_INTEGER;
-        const rightTime = right.estimated_delivery_at?.getTime() ?? Number.MAX_SAFE_INTEGER;
-
-        if (leftTime !== rightTime) {
-          return leftTime - rightTime;
-        }
-
-        return left.created_at.getTime() - right.created_at.getTime();
-      })
-      .map((order) => buildSafeOperatorOrder(order));
+    return orders.map((order) => buildSafeOperatorOrder(order));
   }
 
   async getOrderById(userId: string, orderId: string) {
@@ -488,26 +480,20 @@ export class OperatorsService {
       throw new Error(`No se puede registrar tiempo de producciÃ³n para un pedido en estado ${order.status}`);
     }
 
-    let parsedEstimatedDeliveryAt: Date | undefined;
-    if (estimatedDeliveryAt) {
-      parsedEstimatedDeliveryAt = new Date(estimatedDeliveryAt);
-      if (Number.isNaN(parsedEstimatedDeliveryAt.getTime())) {
-        throw new Error('estimated_delivery_at invÃ¡lido');
-      }
-    }
+    // HU-14: estimated_delivery_at ya no se procesa ni se escribe (se conserva el
+    // parámetro por compatibilidad con el controlador, pero se ignora su valor).
+    void estimatedDeliveryAt;
 
     const updatedOrder = await prisma.order.update({
       where: { id: orderId },
       data: {
-        production_time_estimate: productionTimeEstimate.trim(),
-        estimated_delivery_at: parsedEstimatedDeliveryAt
+        production_time_estimate: productionTimeEstimate.trim()
       }
     });
 
     return {
       id: updatedOrder.id,
       production_time_estimate: updatedOrder.production_time_estimate,
-      estimated_delivery_at: updatedOrder.estimated_delivery_at,
       updated_at: updatedOrder.updated_at
     };
   }

@@ -60,7 +60,19 @@ export class NotificationsService {
       return null;
     }
 
-    return twilio(ENV.TWILIO_ACCOUNT_SID, ENV.TWILIO_AUTH_TOKEN);
+    // BUG: el constructor de Twilio puede lanzar de forma síncrona si las
+    // credenciales están presentes pero mal formadas (ej: ACCOUNT_SID sin el
+    // prefijo "AC..."). Sin este try/catch, cualquier acción que dispare una
+    // notificación (enviar pedido, confirmar pago, marcar listo, etc.) fallaba
+    // con un falso "Error interno del servidor" aunque la acción principal ya
+    // se hubiera completado con éxito. Ver también el mismo caso en
+    // auth.service.ts (registro), que ahora queda cubierto también desde acá.
+    try {
+      return twilio(ENV.TWILIO_ACCOUNT_SID, ENV.TWILIO_AUTH_TOKEN);
+    } catch (error) {
+      console.error('Twilio init error:', error);
+      return null;
+    }
   }
 
   async send(orderId: string, triggerEvent: TriggerEvent): Promise<void> {

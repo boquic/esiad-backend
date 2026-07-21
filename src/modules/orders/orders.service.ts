@@ -451,7 +451,7 @@ export class OrdersService {
     return safeOrder;
   }
 
-  async addFile(orderId: string, clientId: string, fileData: { file_url: string; file_type: FileType }) {
+  async addFile(orderId: string, clientId: string, fileData: { file_url: string; file_type: FileType; original_name?: string }) {
     // Verificar que el pedido existe y pertenece al cliente
     const order = await this.prisma.order.findFirst({
       where: {
@@ -587,7 +587,7 @@ export class OrdersService {
 
     return {
       absolutePath,
-      originalFileName: path.basename(file.file_url),
+      originalFileName: file.original_name ?? path.basename(file.file_url),
       fileType: file.file_type
     };
   }
@@ -624,7 +624,7 @@ export class OrdersService {
 
     return {
       absolutePath,
-      originalFileName: path.basename(file.file_url),
+      originalFileName: file.original_name ?? path.basename(file.file_url),
       fileType: file.file_type
     };
   }

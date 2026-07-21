@@ -108,7 +108,8 @@ export class OrdersController {
 
     const orderFile = await ordersService.addFile(id, clientId, {
       file_url: `/uploads/${file.filename}`,
-      file_type
+      file_type,
+      original_name: file.originalname
     });
 
     return res.status(201).json({ data: orderFile });

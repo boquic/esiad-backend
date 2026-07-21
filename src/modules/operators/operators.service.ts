@@ -74,6 +74,7 @@ function buildSafeOperatorOrder(order: OperatorQueueOrder | OperatorDetailOrder)
         id: file.id,
         order_id: file.order_id,
         file_type: file.file_type,
+        original_name: file.original_name,
         uploaded_at: file.uploaded_at,
         download_url: `/api/operator/orders/${order.id}/files/${file.id}/download`
       }))
@@ -619,7 +620,7 @@ export class OperatorsService {
 
     return {
       absolutePath,
-      originalFileName: path.basename(file.file_url),
+      originalFileName: file.original_name ?? path.basename(file.file_url),
       fileType: file.file_type
     };
   }
@@ -667,7 +668,7 @@ export class OperatorsService {
 
     return {
       absolutePath,
-      originalFileName: path.basename(file.file_url),
+      originalFileName: file.original_name ?? path.basename(file.file_url),
       fileType: file.file_type
     };
   }

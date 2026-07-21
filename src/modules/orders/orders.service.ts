@@ -45,6 +45,23 @@ export class OrdersService {
     // de API, pero ya no se usan aquí: el precio no se calcula en create().
     const { service_type_id, material_id, notes } = data;
 
+    // 0. BUG-03: guarda de idempotencia. Evita pedidos duplicados por doble clic
+    // en "crear": si el cliente ya tiene un borrador identico (mismo servicio)
+    // creado hace menos de 1 minuto, se rechaza en vez de crear otro.
+    const oneMinuteAgo = new Date(Date.now() - 60 * 1000);
+    const recentDuplicateDraft = await this.prisma.order.findFirst({
+      where: {
+        client_id: clientId,
+        service_type_id,
+        status: 'DRAFT',
+        created_at: { gte: oneMinuteAgo },
+      },
+    });
+
+    if (recentDuplicateDraft) {
+      throw new ConflictError('Ya creaste un pedido igual hace unos segundos. Espera un momento antes de intentar de nuevo.');
+    }
+
     // 1. Validar RN#6: Un cliente no puede tener dos pedidos del mismo tipo de servicio en estado 'IN_PROGRESS' simultáneamente
     const activeOrder = await this.prisma.order.findFirst({
       where: {

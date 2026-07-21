@@ -24,8 +24,19 @@ describe('OrdersService (Unit with Dependency Injection)', () => {
       quantity: 10,
     };
 
+    it('should throw ConflictError (BUG-03) if an identical DRAFT was created less than 1 minute ago', async () => {
+      // Primera consulta (guarda de idempotencia) encuentra un borrador reciente.
+      prismaMock.order.findFirst.mockResolvedValueOnce({ id: 'draft-order', status: 'DRAFT' } as any);
+
+      await expect(ordersService.create(clientId, baseData)).rejects.toThrow(
+        new ConflictError('Ya creaste un pedido igual hace unos segundos. Espera un momento antes de intentar de nuevo.')
+      );
+    });
+
     it('should throw ConflictError if user has an active order of same type (RN6)', async () => {
-      // Configurar el mock para devolver un pedido activo
+      // 1ra llamada: guarda de idempotencia (BUG-03) -> sin duplicado reciente.
+      prismaMock.order.findFirst.mockResolvedValueOnce(null);
+      // 2da llamada: RN6 -> hay un pedido activo del mismo tipo.
       prismaMock.order.findFirst.mockResolvedValueOnce({ id: 'active-order' } as any);
 
       await expect(ordersService.create(clientId, baseData)).rejects.toThrow(
@@ -34,14 +45,16 @@ describe('OrdersService (Unit with Dependency Injection)', () => {
     });
 
     it('should throw NotFoundError if serviceType does not exist', async () => {
-      prismaMock.order.findFirst.mockResolvedValueOnce(null);
+      prismaMock.order.findFirst.mockResolvedValueOnce(null); // BUG-03: sin duplicado reciente
+      prismaMock.order.findFirst.mockResolvedValueOnce(null); // RN6: sin pedido activo
       prismaMock.serviceType.findUnique.mockResolvedValueOnce(null);
 
       await expect(ordersService.create(clientId, baseData)).rejects.toThrow(NotFoundError);
     });
 
     it('should create the order as DRAFT with no automatic price calculation', async () => {
-      prismaMock.order.findFirst.mockResolvedValueOnce(null);
+      prismaMock.order.findFirst.mockResolvedValueOnce(null); // BUG-03: sin duplicado reciente
+      prismaMock.order.findFirst.mockResolvedValueOnce(null); // RN6: sin pedido activo
       prismaMock.serviceType.findUnique.mockResolvedValueOnce({ id: 'st-1', pricing_model: 'PER_UNIT', is_active: true } as any);
       prismaMock.material.findUnique.mockResolvedValueOnce({
         id: 'mat-1',
@@ -72,7 +85,8 @@ describe('OrdersService (Unit with Dependency Injection)', () => {
     });
 
     it('should ignore quantity/area/volume and not branch on pricing_model (switch removed)', async () => {
-      prismaMock.order.findFirst.mockResolvedValueOnce(null);
+      prismaMock.order.findFirst.mockResolvedValueOnce(null); // BUG-03: sin duplicado reciente
+      prismaMock.order.findFirst.mockResolvedValueOnce(null); // RN6: sin pedido activo
       prismaMock.serviceType.findUnique.mockResolvedValueOnce({ id: 'st-1', pricing_model: 'PER_VOLUME', is_active: true } as any);
       prismaMock.material.findUnique.mockResolvedValueOnce({
         id: 'mat-1',
@@ -90,7 +104,8 @@ describe('OrdersService (Unit with Dependency Injection)', () => {
     });
 
     it('should set CASH_ON_DELIVERY for frequent users', async () => {
-      prismaMock.order.findFirst.mockResolvedValueOnce(null);
+      prismaMock.order.findFirst.mockResolvedValueOnce(null); // BUG-03: sin duplicado reciente
+      prismaMock.order.findFirst.mockResolvedValueOnce(null); // RN6: sin pedido activo
       prismaMock.serviceType.findUnique.mockResolvedValueOnce({ id: 'st-1', pricing_model: 'FIXED', is_active: true } as any);
       prismaMock.material.findUnique.mockResolvedValueOnce({
         id: 'mat-1',

@@ -192,13 +192,16 @@ model Order {
 }
 
 model OrderFile {
-  id          String   @id @default(uuid())
-  order_id    String
-  file_url    String
-  file_type   FileType
-  uploaded_at DateTime @default(now())
+  id            String   @id @default(uuid())
+  order_id      String
+  file_url      String
+  file_type     FileType
+  // Nombre original con el que el cliente subió el archivo (ej: "plano_final.dwg").
+  // Nullable porque los archivos subidos antes de este campo no lo tienen.
+  original_name String?
+  uploaded_at   DateTime @default(now())
 
-  order       Order    @relation(fields: [order_id], references: [id])
+  order         Order    @relation(fields: [order_id], references: [id])
 
   @@map("order_files")
 }

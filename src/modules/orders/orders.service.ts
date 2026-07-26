@@ -168,6 +168,34 @@ export class OrdersService {
   }
 
   /**
+   * Guarda más permisiva que findEditableDraft(): además de DRAFT, acepta
+   * BUDGETED (pedido ya creado pero aún no enviado a cotización). Se usa
+   * para editar notas y adjuntar/quitar archivos antes de que el operario
+   * empiece su revisión (a partir de OPERATOR_REVIEW_PENDING ya no se puede).
+   */
+  private async findOrderEditableBeforeQuotation(orderId: string, clientId: string) {
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+    });
+
+    if (!order) {
+      throw new NotFoundError('Pedido no encontrado');
+    }
+
+    if (order.client_id !== clientId) {
+      throw new ForbiddenError('No tienes permiso para modificar este pedido');
+    }
+
+    if (order.status !== 'DRAFT' && order.status !== 'BUDGETED') {
+      throw new BadRequestError(
+        `Solo se puede editar un pedido antes de enviarlo a cotización. Estado actual: ${order.status}`
+      );
+    }
+
+    return order;
+  }
+
+  /**
    * PATCH /api/orders/:id — Edita notas y/o tipo de servicio de un borrador.
    * Al cambiar el servicio se reasigna el material por defecto y se recalcula
    * el precio preliminar.
@@ -177,11 +205,18 @@ export class OrdersService {
     clientId: string,
     data: { service_type_id?: string; notes?: string | null }
   ) {
-    const order = await this.findEditableDraft(orderId, clientId);
+    const order = await this.findOrderEditableBeforeQuotation(orderId, clientId);
     const { service_type_id, notes } = data;
 
     if (service_type_id === undefined && notes === undefined) {
       throw new BadRequestError('No se enviaron campos para actualizar');
+    }
+
+    // El tipo de servicio define la especialidad del operario ya asignado en
+    // BUDGETED, así que cambiarlo solo se permite mientras el pedido sigue
+    // en DRAFT (antes de que exista esa asignación).
+    if (service_type_id !== undefined && service_type_id !== order.service_type_id && order.status !== 'DRAFT') {
+      throw new BadRequestError('El tipo de servicio solo se puede cambiar mientras el pedido es un borrador');
     }
 
     const updateData: Prisma.OrderUpdateInput = {};
@@ -452,17 +487,9 @@ export class OrdersService {
   }
 
   async addFile(orderId: string, clientId: string, fileData: { file_url: string; file_type: FileType; original_name?: string }) {
-    // Verificar que el pedido existe y pertenece al cliente
-    const order = await this.prisma.order.findFirst({
-      where: {
-        id: orderId,
-        client_id: clientId
-      }
-    });
-
-    if (!order) {
-      throw new NotFoundError('Pedido no encontrado');
-    }
+    // Solo se pueden agregar archivos antes de enviar el pedido a cotización
+    // (DRAFT o BUDGETED).
+    await this.findOrderEditableBeforeQuotation(orderId, clientId);
 
     return await this.prisma.orderFile.create({
       data: {
@@ -470,6 +497,39 @@ export class OrdersService {
         ...fileData
       }
     });
+  }
+
+  /**
+   * DELETE /api/orders/:id/files/:fileId — Elimina un archivo adjunto
+   * (registro en BD y fichero en disco) mientras el pedido siga editable
+   * (DRAFT o BUDGETED, antes de enviarse a cotización).
+   */
+  async removeFile(orderId: string, clientId: string, fileId: string) {
+    await this.findOrderEditableBeforeQuotation(orderId, clientId);
+
+    const file = await this.prisma.orderFile.findFirst({
+      where: { id: fileId, order_id: orderId },
+    });
+
+    if (!file) {
+      throw new NotFoundError('Archivo no encontrado');
+    }
+
+    await this.prisma.orderFile.delete({ where: { id: fileId } });
+
+    const uploadsRoot = path.resolve(process.cwd(), ENV.UPLOAD_PATH);
+    const relativePath = file.file_url.replace(/^\/+/, '').replace(/\//g, path.sep);
+    const absolutePath = path.resolve(process.cwd(), relativePath);
+
+    if (absolutePath.startsWith(uploadsRoot)) {
+      try {
+        await fs.unlink(absolutePath);
+      } catch {
+        // El fichero ya no existe: no es un error para el cliente.
+      }
+    }
+
+    return { id: fileId, deleted: true };
   }
 
   async confirmReview(orderId: string, clientId: string, reviewNotes?: string) {

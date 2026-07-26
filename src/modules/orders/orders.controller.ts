@@ -30,7 +30,7 @@ export class OrdersController {
     return res.status(201).json({ data: order });
   }
 
-  /** PATCH /api/orders/:id — Editar notas y/o servicio de un borrador (solo DRAFT). */
+  /** PATCH /api/orders/:id — Editar notas (y opcionalmente servicio, solo en DRAFT) antes de enviar a cotización (DRAFT o BUDGETED). */
   async update(req: Request, res: Response): Promise<any> {
     const clientId = req.user.id as string;
     const id = req.params.id as string;
@@ -113,6 +113,17 @@ export class OrdersController {
     });
 
     return res.status(201).json({ data: orderFile });
+  }
+
+  /** DELETE /api/orders/:id/files/:fileId — Quitar un archivo adjunto (solo DRAFT o BUDGETED, antes de cotización). */
+  async removeFile(req: Request, res: Response): Promise<any> {
+    const clientId = req.user.id as string;
+    const id = req.params.id as string;
+    const fileId = req.params.fileId as string;
+
+    const result = await ordersService.removeFile(id, clientId, fileId);
+
+    return res.status(200).json({ data: result });
   }
 
   async confirmBudget(req: Request, res: Response): Promise<any> {

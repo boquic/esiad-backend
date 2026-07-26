@@ -80,7 +80,7 @@ describe('Auth Controller (Integration)', () => {
     });
   });
 
-  describe('POST /api/auth/login (paso 1 - reto 2FA)', () => {
+  describe('POST /api/auth/login (CLIENT: sin reto 2FA - HU-19)', () => {
     it('should return 401 for invalid credentials', async () => {
       const res = await request(app)
         .post('/api/auth/login')
@@ -93,7 +93,7 @@ describe('Auth Controller (Integration)', () => {
       expect(res.body.message).toBe('Credenciales invalidas');
     });
 
-    it('should require 2FA setup on first login and NOT return a token', async () => {
+    it('should log in a CLIENT directly with the token, without requiring 2FA (HU-19)', async () => {
       const res = await request(app)
         .post('/api/auth/login')
         .send({
@@ -102,14 +102,14 @@ describe('Auth Controller (Integration)', () => {
         });
 
       expect(res.status).toBe(200);
-      expect(res.body.data).not.toHaveProperty('token');
-      expect(res.body.data.requires_2fa_setup).toBe(true);
-      expect(res.body.data).toHaveProperty('otpauth_url');
-      expect(res.body.data).toHaveProperty('secret');
+      expect(res.body.data).toHaveProperty('token');
+      expect(res.body.data.user.dni).toBe(testUser.dni);
+      expect(res.body.data.user).not.toHaveProperty('password_hash');
+      expect(res.body.data.user).not.toHaveProperty('two_factor_secret');
     });
   });
 
-  describe('POST /api/auth/login/verify (paso 2 - TOTP)', () => {
+  describe('POST /api/auth/login/verify (endpoint de TOTP, aun disponible)', () => {
     it('should reject an invalid TOTP code with 401', async () => {
       const res = await request(app)
         .post('/api/auth/login/verify')
@@ -122,16 +122,14 @@ describe('Auth Controller (Integration)', () => {
       expect(res.status).toBe(401);
     });
 
-    it('should return token and enable 2FA with a valid TOTP code', async () => {
-      // Paso 1: obtener el secreto de enrolamiento.
-      const challenge = await request(app)
-        .post('/api/auth/login')
-        .send({ identifier: testUser.dni, password: 'password123' });
-
-      const secret = challenge.body.data.secret as string;
+    it('should return a token with a valid TOTP code, even for a CLIENT account', async () => {
+      // Un CLIENT ya no recibe el secreto via /login (HU-19), pero el
+      // registro igual le genera uno; lo tomamos directo de la BD para
+      // seguir cubriendo el endpoint /login/verify.
+      const user = await prisma.user.findUnique({ where: { dni: testUser.dni } });
+      const secret = user?.two_factor_secret as string;
       const code = authenticator.generate(secret);
 
-      // Paso 2: verificar el código y recibir el JWT.
       const res = await request(app)
         .post('/api/auth/login/verify')
         .send({ identifier: testUser.dni, password: 'password123', code });

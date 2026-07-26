@@ -58,7 +58,7 @@ router.get('/my', authMiddleware, requireRole(['CLIENT']), ordersController.find
 // Ver detalle de un pedido
 router.get('/:id', authMiddleware, requireRole(['CLIENT']), ordersController.findById.bind(ordersController));
 
-// Editar un borrador (solo estado DRAFT y solo el dueño del pedido)
+// Editar notas/servicio antes de cotización (DRAFT o BUDGETED, solo el dueño del pedido)
 router.patch('/:id', authMiddleware, requireRole(['CLIENT']), ordersController.update.bind(ordersController));
 
 // Eliminar un borrador (solo estado DRAFT y solo el dueño del pedido)
@@ -120,6 +120,13 @@ router.get('/:id/files/:fileId/download',
   authMiddleware,
   requireRole(['CLIENT']),
   ordersController.downloadOrderFile.bind(ordersController)
+);
+
+// Quitar un archivo adjunto antes de enviar a cotización (DRAFT o BUDGETED)
+router.delete('/:id/files/:fileId',
+  authMiddleware,
+  requireRole(['CLIENT']),
+  ordersController.removeFile.bind(ordersController)
 );
 
 export default router;

@@ -4,6 +4,14 @@ import { ENV } from '../../config/env';
 import { prisma } from '../../config/database';
 import { notificationsService } from '../notifications/notifications.service';
 
+// Pagos pendientes de revisión (el cliente subió su comprobante y aún no lo
+// aprueba/rechaza el operario/admin): se usan para avisarle al operario que
+// tiene un comprobante nuevo por revisar.
+const pendingPaymentsInclude = {
+  where: { status: 'PENDING' as const },
+  select: { id: true, created_at: true }
+};
+
 const operatorQueueOrderInclude = Prisma.validator<Prisma.OrderDefaultArgs>()({
   include: {
     service_type: true,
@@ -22,7 +30,8 @@ const operatorQueueOrderInclude = Prisma.validator<Prisma.OrderDefaultArgs>()({
         dni: true,
         phone: true
       }
-    }
+    },
+    payments: pendingPaymentsInclude
   }
 });
 
@@ -45,7 +54,8 @@ const operatorDetailOrderInclude = Prisma.validator<Prisma.OrderDefaultArgs>()({
         phone: true
       }
     },
-    files: true
+    files: true,
+    payments: pendingPaymentsInclude
   }
 });
 
@@ -118,7 +128,12 @@ function buildSafeOperatorOrder(order: OperatorQueueOrder | OperatorDetailOrder)
         }
       : null,
     client: order.client,
-    files
+    files,
+    // Comprobante de pago del cliente aún no revisado (para avisar al operario).
+    has_pending_payment: Array.isArray(order.payments) && order.payments.length > 0,
+    pending_payment_uploaded_at: Array.isArray(order.payments) && order.payments.length > 0
+      ? order.payments[0].created_at
+      : null
   };
 }
 

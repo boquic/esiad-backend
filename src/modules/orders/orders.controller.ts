@@ -162,7 +162,18 @@ export class OrdersController {
     }
 
     const file = await ordersService.getDownloadableFile(clientId, orderId, fileId);
-    res.download(file.absolutePath, file.originalFileName);
+    // res.download falla de forma asíncrona (ej: el archivo ya no existe en
+    // disco) y sin este callback no se puede devolver un mensaje JSON claro
+    // sobre la causa; el frontend solo mostraba "no se pudo descargar".
+    res.download(file.absolutePath, file.originalFileName, (err) => {
+      if (err && !res.headersSent) {
+        console.error('Error al descargar archivo (cliente):', err);
+        res.status(404).json({
+          error: true,
+          message: 'El archivo ya no está disponible en el servidor. Es posible que se haya perdido al redesplegar (verifica que exista un volumen persistente montado en /app/uploads).'
+        });
+      }
+    });
   }
 
   async downloadPrimaryOrderFile(req: Request, res: Response): Promise<any> {
@@ -174,6 +185,14 @@ export class OrdersController {
     }
 
     const file = await ordersService.getPrimaryDownloadableFile(clientId, orderId);
-    res.download(file.absolutePath, file.originalFileName);
+    res.download(file.absolutePath, file.originalFileName, (err) => {
+      if (err && !res.headersSent) {
+        console.error('Error al descargar archivo principal (cliente):', err);
+        res.status(404).json({
+          error: true,
+          message: 'El archivo ya no está disponible en el servidor. Es posible que se haya perdido al redesplegar (verifica que exista un volumen persistente montado en /app/uploads).'
+        });
+      }
+    });
   }
 }

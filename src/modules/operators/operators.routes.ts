@@ -40,6 +40,14 @@ router.patch(
   operatorsController.updateOrderStatus
 );
 
+// El operario verifica el comprobante (fuera del sistema) y confirma el pago: PENDING_PAYMENT -> PAID
+router.post(
+  '/orders/:id/confirm-payment',
+  authMiddleware,
+  requireRole(['OPERATOR']),
+  operatorsController.confirmPayment
+);
+
 router.post(
   '/orders/:id/review',
   authMiddleware,

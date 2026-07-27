@@ -32,6 +32,10 @@ enum OrderStatus {
   CLIENT_REVIEW_PENDING
   OPERATOR_REVIEW_PENDING
   PENDING_PAYMENT
+  // El operario verificó el comprobante y confirmó el pago, pero todavía no
+  // inicia producción. Sirve para ordenar la cola de "a quién le toca
+  // empezar primero" según el momento en que se confirmó cada pago.
+  PAID
   IN_PROGRESS
   READY
   DELIVERED
@@ -174,6 +178,10 @@ model Order {
   operator_reviewed_at DateTime?
   operator_price_adjustment_reason String?
   production_time_estimate String?
+  // Momento en que el operario confirmó el pago (PENDING_PAYMENT -> PAID),
+  // luego de verificar el comprobante subido por el cliente. Se usa para
+  // ordenar la cola de pedidos pagados esperando iniciar producción.
+  payment_confirmed_at DateTime?
   production_started_at DateTime?
   production_ready_at DateTime?
   estimated_delivery_at DateTime?

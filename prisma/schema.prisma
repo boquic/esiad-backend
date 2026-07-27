@@ -180,6 +180,12 @@ model Order {
   operator_notes    String?
   operator_reviewed_at DateTime?
   operator_price_adjustment_reason String?
+  // Momento en que el pedido entra por primera vez a la cola del operario
+  // (BUDGETED -> OPERATOR_REVIEW_PENDING, cuando el cliente da "Enviar a
+  // cotización"). No se vuelve a pisar aunque el pedido regrese a esta cola
+  // tras un rechazo del operario: se conserva el orden de llegada original
+  // para que el operario atienda los pedidos en orden cronológico real.
+  queued_at         DateTime?
   production_time_estimate String?
   // Momento en que el operario confirmó el pago (PENDING_PAYMENT -> PAID),
   // luego de verificar el comprobante subido por el cliente. Se usa para

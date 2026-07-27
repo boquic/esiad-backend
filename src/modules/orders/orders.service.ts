@@ -431,6 +431,9 @@ export class OrdersService {
         status: 'OPERATOR_REVIEW_PENDING',
         operator_id: operator.id,
         client_reviewed_at: new Date(),
+        // Momento real de llegada a la cola del operario (ver comentario en
+        // confirmReview): se usa para ordenar la cola por orden de llegada.
+        queued_at: new Date(),
       },
       include: orderWithOperatorInclude,
     });
@@ -605,7 +608,11 @@ export class OrdersService {
       data: {
         status: 'OPERATOR_REVIEW_PENDING',
         client_review_notes: reviewNotes?.trim() || order.client_review_notes,
-        client_reviewed_at: new Date()
+        client_reviewed_at: new Date(),
+        // Solo se fija la primera vez que el pedido entra a la cola del
+        // operario; si ya tenía queued_at (p. ej. reingresa tras un rechazo)
+        // se conserva para no perder su puesto de llegada original.
+        queued_at: order.queued_at ?? new Date()
       },
       include: orderWithOperatorInclude
     });

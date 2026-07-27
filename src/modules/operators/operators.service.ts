@@ -61,7 +61,7 @@ const operatorDetailOrderInclude = Prisma.validator<Prisma.OrderDefaultArgs>()({
 
 type OperatorQueueOrder = Prisma.OrderGetPayload<typeof operatorQueueOrderInclude>;
 type OperatorDetailOrder = Prisma.OrderGetPayload<typeof operatorDetailOrderInclude>;
-type OperatorReviewAction = 'APPROVE' | 'RETURN_TO_CLIENT' | 'REJECT';
+type OperatorReviewAction = 'APPROVE' | 'REJECT';
 
 function mapPricingModelToSpecialty(pricingModel: PricingModel): Specialty {
   switch (pricingModel) {
@@ -378,7 +378,18 @@ export class OperatorsService {
     };
   }
 
-  async reviewOrder(userId: string, orderId: string, action: string, notes?: string) {
+  /**
+   * Revisión del operario sobre un pedido en OPERATOR_REVIEW_PENDING.
+   * Solo hay dos acciones posibles, y AMBAS envían el pedido de vuelta al
+   * cliente (CLIENT_REVIEW_PENDING) a la espera de su respuesta — ninguna
+   * cancela el pedido directamente ni lo manda a pago sin que el cliente
+   * confirme:
+   *   - APPROVE: el operario fija el precio final que considera correcto
+   *     (obligatorio) y opcionalmente agrega un comentario para el cliente.
+   *   - REJECT: el operario debe indicar el motivo por el que no aprueba el
+   *     pedido tal cual está; se le informa al cliente para que responda.
+   */
+  async reviewOrder(userId: string, orderId: string, action: string, notes?: string, finalPrice?: number) {
     const operator = await prisma.operator.findUnique({
       where: { user_id: userId }
     });
@@ -388,8 +399,8 @@ export class OperatorsService {
     }
 
     const normalizedAction = action?.toUpperCase() as OperatorReviewAction;
-    if (!['APPROVE', 'RETURN_TO_CLIENT', 'REJECT'].includes(normalizedAction)) {
-      throw new Error('AcciÃ³n de revisiÃ³n invÃ¡lida');
+    if (!['APPROVE', 'REJECT'].includes(normalizedAction)) {
+      throw new Error('Acción de revisión inválida');
     }
 
     const order = await prisma.order.findFirst({
@@ -404,28 +415,32 @@ export class OperatorsService {
       throw new Error('No puedes revisar un pedido que no te fue asignado');
     }
 
+    if (order.status !== 'OPERATOR_REVIEW_PENDING') {
+      throw new Error(`Solo se puede revisar un pedido en estado OPERATOR_REVIEW_PENDING. Estado actual: ${order.status}`);
+    }
+
     if (normalizedAction === 'APPROVE') {
-      if (order.status !== 'OPERATOR_REVIEW_PENDING') {
-        throw new Error(`Solo se puede aprobar un pedido en estado OPERATOR_REVIEW_PENDING. Estado actual: ${order.status}`);
+      if (!Number.isFinite(finalPrice) || (finalPrice as number) <= 0) {
+        throw new Error('El precio final es requerido y debe ser mayor a cero');
       }
 
-      const now = new Date();
-      const nextStatus = order.payment_condition === 'CASH_ON_DELIVERY' ? 'IN_PROGRESS' : 'PENDING_PAYMENT';
+      const finalPriceDecimal = new Prisma.Decimal(finalPrice as number);
+      const budgetExpiresAt = new Date();
+      budgetExpiresAt.setHours(budgetExpiresAt.getHours() + 24);
+
       const updatedOrder = await prisma.order.update({
         where: { id: orderId },
         data: {
-          status: nextStatus,
-          final_price: order.final_price ?? order.estimated_price,
-          operator_notes: notes?.trim() || order.operator_notes,
-          operator_reviewed_at: now,
-          production_started_at: nextStatus === 'IN_PROGRESS' ? now : order.production_started_at
+          status: 'CLIENT_REVIEW_PENDING',
+          final_price: finalPriceDecimal,
+          advance_amount: order.payment_condition === 'ADVANCE_50' ? finalPriceDecimal.mul(0.5) : null,
+          budget_expires_at: budgetExpiresAt,
+          operator_price_adjustment_reason: notes?.trim() || null,
+          operator_reviewed_at: new Date()
         }
       });
 
       await notificationsService.send(updatedOrder.id, 'OPERATOR_REVIEW_APPROVED');
-      if (updatedOrder.status === 'IN_PROGRESS') {
-        await notificationsService.send(updatedOrder.id, 'ORDER_IN_PRODUCTION');
-      }
 
       return {
         id: updatedOrder.id,
@@ -436,23 +451,26 @@ export class OperatorsService {
       };
     }
 
+    // REJECT
     if (!notes || notes.trim() === '') {
-      throw new Error('Las notas de revisiÃ³n son requeridas');
+      throw new Error('El motivo del rechazo es requerido');
     }
 
     const updatedOrder = await prisma.order.update({
       where: { id: orderId },
       data: {
-        status: normalizedAction === 'RETURN_TO_CLIENT' ? 'CLIENT_REVIEW_PENDING' : 'CANCELLED',
-        operator_notes: notes.trim(),
+        status: 'CLIENT_REVIEW_PENDING',
+        operator_price_adjustment_reason: notes.trim(),
         operator_reviewed_at: new Date()
       }
     });
 
+    await notificationsService.send(updatedOrder.id, 'OPERATOR_REVIEW_REJECTED');
+
     return {
       id: updatedOrder.id,
       status: updatedOrder.status,
-      operator_notes: updatedOrder.operator_notes,
+      operator_price_adjustment_reason: updatedOrder.operator_price_adjustment_reason,
       operator_reviewed_at: updatedOrder.operator_reviewed_at,
       updated_at: updatedOrder.updated_at
     };

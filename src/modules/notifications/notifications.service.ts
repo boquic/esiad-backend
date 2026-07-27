@@ -37,6 +37,8 @@ function buildOrderNotificationMessage(order: OrderWithClient, triggerEvent: Tri
       return `El presupuesto del pedido #${shortOrderId} fue ajustado. Ingresa a la plataforma para revisar el nuevo monto y confirmar si esta correcto.`;
     case 'OPERATOR_REVIEW_APPROVED':
       return `Tu pedido #${shortOrderId} fue aprobado por el operario. Ya puedes continuar con el pago si corresponde.`;
+    case 'OPERATOR_REVIEW_REJECTED':
+      return `El operario no aprobó tu pedido #${shortOrderId} tal cual estaba. Ingresa a la plataforma para ver el motivo y responder.`;
     case 'PAYMENT_CONFIRMED':
       return `Tu pago fue confirmado. El pedido #${shortOrderId} esta en produccion. Te avisamos cuando este listo.`;
     case 'ORDER_IN_PRODUCTION':

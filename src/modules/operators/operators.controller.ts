@@ -338,7 +338,21 @@ export class OperatorsController {
       }
 
       const file = await operatorsService.getDownloadableFile(userId, orderId, fileId);
-      res.download(file.absolutePath, file.originalFileName);
+      // res.download falla de forma ASÍNCRONA (ej: el archivo ya no existe en
+      // disco) y por defecto no pasa por este try/catch — sin este callback,
+      // Express respondía con una página de error genérica en vez de JSON, y
+      // el frontend no podía mostrar el motivo real (solo "no se pudo
+      // descargar"). Con el callback, si el archivo no existe devolvemos un
+      // 404 JSON explicando la causa más probable (almacenamiento efímero).
+      res.download(file.absolutePath, file.originalFileName, (err) => {
+        if (err && !res.headersSent) {
+          console.error('Error al descargar archivo (operador):', err);
+          res.status(404).json({
+            error: true,
+            message: 'El archivo ya no está disponible en el servidor. Es posible que se haya perdido al redesplegar (verifica que exista un volumen persistente montado en /app/uploads).'
+          });
+        }
+      });
     } catch (error) {
       if (error instanceof Error) {
         if (error.message === 'Ruta de archivo inválida') {
@@ -369,7 +383,15 @@ export class OperatorsController {
       }
 
       const file = await operatorsService.getPrimaryDownloadableFile(userId, orderId);
-      res.download(file.absolutePath, file.originalFileName);
+      res.download(file.absolutePath, file.originalFileName, (err) => {
+        if (err && !res.headersSent) {
+          console.error('Error al descargar archivo principal (operador):', err);
+          res.status(404).json({
+            error: true,
+            message: 'El archivo ya no está disponible en el servidor. Es posible que se haya perdido al redesplegar (verifica que exista un volumen persistente montado en /app/uploads).'
+          });
+        }
+      });
     } catch (error) {
       if (error instanceof Error) {
         if (error.message === 'Ruta de archivo inválida') {

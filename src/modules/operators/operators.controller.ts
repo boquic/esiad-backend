@@ -87,7 +87,41 @@ export class OperatorsController {
         if (
           error.message.includes('Estado inválido') ||
           error.message.includes('Solo se puede marcar como READY') ||
-          error.message.includes('Solo se puede marcar como IN_PROGRESS')
+          error.message.includes('Solo se puede iniciar producción')
+        ) {
+          res.status(400).json({ error: true, message: error.message });
+          return;
+        }
+        if (error.message === 'Operario no encontrado' || error.message === 'Pedido no encontrado') {
+          res.status(404).json({ error: true, message: error.message });
+          return;
+        }
+      }
+      next(error);
+    }
+  }
+
+  async confirmPayment(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const userId = (req as AuthenticatedOperatorRequest).user?.id;
+      const id = req.params.id as string;
+
+      if (!userId) {
+        res.status(401).json({ error: true, message: 'Acceso no autorizado, token no proporcionado' });
+        return;
+      }
+
+      const order = await operatorsService.confirmPayment(userId, id);
+      res.status(200).json({ data: order });
+    } catch (error) {
+      if (error instanceof Error) {
+        if (error.message === 'No puedes confirmar el pago de un pedido que no te fue asignado') {
+          res.status(403).json({ error: true, message: error.message });
+          return;
+        }
+        if (
+          error.message.includes('Solo se puede confirmar el pago') ||
+          error.message.includes('no tiene un comprobante')
         ) {
           res.status(400).json({ error: true, message: error.message });
           return;

@@ -108,6 +108,7 @@ function buildSafeOperatorOrder(order: OperatorQueueOrder | OperatorDetailOrder)
     operator_reviewed_at: order.operator_reviewed_at,
     operator_price_adjustment_reason: order.operator_price_adjustment_reason,
     production_time_estimate: order.production_time_estimate,
+    payment_confirmed_at: order.payment_confirmed_at,
     production_started_at: order.production_started_at,
     production_ready_at: order.production_ready_at,
     created_at: order.created_at,
@@ -167,7 +168,7 @@ export class OperatorsService {
       where: {
         operator_id: operator.id,
         status: {
-          in: ['BUDGETED', 'CLIENT_REVIEW_PENDING', 'OPERATOR_REVIEW_PENDING', 'PENDING_PAYMENT', 'IN_PROGRESS', 'READY']
+          in: ['BUDGETED', 'CLIENT_REVIEW_PENDING', 'OPERATOR_REVIEW_PENDING', 'PENDING_PAYMENT', 'PAID', 'IN_PROGRESS', 'READY']
         },
         service_type: {
           pricing_model: {
@@ -236,8 +237,14 @@ export class OperatorsService {
       throw new Error('Estado inválido. Solo puedes marcar el pedido como IN_PROGRESS o READY');
     }
 
-    if (status === 'IN_PROGRESS' && order.status !== 'PENDING_PAYMENT') {
-      throw new Error(`Solo se puede marcar como IN_PROGRESS un pedido en estado PENDING_PAYMENT. Estado actual: ${order.status}`);
+    // El pago con adelanto (ADVANCE_50) se confirma aparte (ver
+    // confirmPayment): para pasar a IN_PROGRESS el pedido ya debe estar en
+    // PAID. Los pedidos con contraentrega (CASH_ON_DELIVERY) no tienen
+    // comprobante que verificar, así que pueden iniciar producción
+    // directamente desde PENDING_PAYMENT, como ya funcionaba antes.
+    const canStartFromPendingPayment = order.status === 'PENDING_PAYMENT' && order.payment_condition === 'CASH_ON_DELIVERY';
+    if (status === 'IN_PROGRESS' && order.status !== 'PAID' && !canStartFromPendingPayment) {
+      throw new Error(`Solo se puede iniciar producción de un pedido en estado PAID (pago confirmado) o PENDING_PAYMENT con contraentrega. Estado actual: ${order.status}`);
     }
 
     if (status === 'READY' && order.status !== 'IN_PROGRESS') {
@@ -247,31 +254,14 @@ export class OperatorsService {
     let updatedOrder;
 
     if (status === 'IN_PROGRESS') {
-      updatedOrder = await prisma.$transaction(async (tx) => {
-        const pendingPayment = await tx.payment.findFirst({
-          where: { order_id: orderId, status: 'PENDING' }
-        });
-
-        if (pendingPayment) {
-          await tx.payment.update({
-            where: { id: pendingPayment.id },
-            data: {
-              status: 'APPROVED',
-              reviewed_at: new Date()
-            }
-          });
+      updatedOrder = await prisma.order.update({
+        where: { id: orderId },
+        data: {
+          status: 'IN_PROGRESS',
+          production_started_at: new Date()
         }
-
-        return tx.order.update({
-          where: { id: orderId },
-          data: {
-            status: 'IN_PROGRESS',
-            production_started_at: new Date()
-          }
-        });
       });
 
-      await notificationsService.send(updatedOrder.id, 'PAYMENT_CONFIRMED');
       await notificationsService.send(updatedOrder.id, 'ORDER_IN_PRODUCTION');
     } else {
       updatedOrder = await prisma.order.update({
@@ -284,6 +274,69 @@ export class OperatorsService {
 
       await notificationsService.send(updatedOrder.id, 'ORDER_READY');
     }
+
+    return {
+      id: updatedOrder.id,
+      status: updatedOrder.status,
+      updated_at: updatedOrder.updated_at
+    };
+  }
+
+  /**
+   * El operario verificó el comprobante subido por el cliente (fuera del
+   * sistema, ej. viendo el Yape/transferencia en su celular) y confirma que
+   * el pago es real: PENDING_PAYMENT -> PAID. Aprueba el pago pendiente y
+   * deja registrado el momento de confirmación, para poder ordenar la cola
+   * de pedidos pagados que esperan iniciar producción.
+   */
+  async confirmPayment(userId: string, orderId: string) {
+    const operator = await prisma.operator.findUnique({
+      where: { user_id: userId }
+    });
+
+    if (!operator) {
+      throw new Error('Operario no encontrado');
+    }
+
+    const order = await prisma.order.findFirst({
+      where: { id: orderId }
+    });
+
+    if (!order) {
+      throw new Error('Pedido no encontrado');
+    }
+
+    if (order.operator_id !== operator.id) {
+      throw new Error('No puedes confirmar el pago de un pedido que no te fue asignado');
+    }
+
+    if (order.status !== 'PENDING_PAYMENT') {
+      throw new Error(`Solo se puede confirmar el pago de un pedido en estado PENDING_PAYMENT. Estado actual: ${order.status}`);
+    }
+
+    const pendingPayment = await prisma.payment.findFirst({
+      where: { order_id: orderId, status: 'PENDING' }
+    });
+
+    if (!pendingPayment) {
+      throw new Error('Este pedido no tiene un comprobante de pago pendiente de verificar');
+    }
+
+    const now = new Date();
+
+    const updatedOrder = await prisma.$transaction(async (tx) => {
+      await tx.payment.update({
+        where: { id: pendingPayment.id },
+        data: { status: 'APPROVED', reviewed_at: now }
+      });
+
+      return tx.order.update({
+        where: { id: orderId },
+        data: { status: 'PAID', payment_confirmed_at: now }
+      });
+    });
+
+    await notificationsService.send(updatedOrder.id, 'PAYMENT_CONFIRMED');
 
     return {
       id: updatedOrder.id,

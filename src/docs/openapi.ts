@@ -252,7 +252,7 @@ export const openApiSpec = {
           operator_id: { type: 'string', nullable: true, example: '3a1b2c3d-4e5f-6789-abcd-ef0123456789' },
           service_type_id: { type: 'string', example: 'f47ac10b-58cc-4372-a567-0e02b2c3d479' },
           material_id: { type: 'string', example: 'd290f1ee-6c54-4b01-90e6-d701748f0851' },
-          status: { type: 'string', enum: ['BUDGETED', 'CLIENT_REVIEW_PENDING', 'OPERATOR_REVIEW_PENDING', 'PENDING_PAYMENT', 'IN_PROGRESS', 'READY', 'DELIVERED', 'CANCELLED', 'EXPIRED'], example: 'BUDGETED' },
+          status: { type: 'string', enum: ['BUDGETED', 'CLIENT_REVIEW_PENDING', 'OPERATOR_REVIEW_PENDING', 'PENDING_PAYMENT', 'PAID', 'IN_PROGRESS', 'READY', 'DELIVERED', 'CANCELLED', 'EXPIRED'], example: 'BUDGETED' },
           payment_condition: { type: 'string', enum: ['ADVANCE_50', 'CASH_ON_DELIVERY'], example: 'ADVANCE_50' },
           estimated_price: { type: 'number', example: 150.00 },
           final_price: { type: 'number', nullable: true, example: 165.00 },

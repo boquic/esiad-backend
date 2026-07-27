@@ -111,6 +111,7 @@ function buildSafeOperatorOrder(order: OperatorQueueOrder | OperatorDetailOrder)
     payment_confirmed_at: order.payment_confirmed_at,
     production_started_at: order.production_started_at,
     production_ready_at: order.production_ready_at,
+    queued_at: order.queued_at,
     created_at: order.created_at,
     updated_at: order.updated_at,
     notes: order.notes,
@@ -177,12 +178,15 @@ export class OperatorsService {
         }
       },
       ...operatorQueueOrderInclude,
-      // HU-14: ya no se prioriza por estimated_delivery_at. Se ordena por orden de
-      // creación (equivalente a "número de pedido" ascendente, ya que no existe
-      // una columna order_number en el esquema).
-      orderBy: {
-        created_at: 'asc'
-      }
+      // La cola se ordena por queued_at (momento real en que el cliente envió
+      // el pedido a cotización), no por created_at (creación del borrador,
+      // que puede quedarse días sin enviarse). Los pedidos que aún no entran
+      // a la cola (BUDGETED sin enviar todavía, queued_at null) van al final,
+      // ordenados entre sí por fecha de creación.
+      orderBy: [
+        { queued_at: { sort: 'asc', nulls: 'last' } },
+        { created_at: 'asc' }
+      ]
     });
 
     return orders.map((order) => buildSafeOperatorOrder(order));

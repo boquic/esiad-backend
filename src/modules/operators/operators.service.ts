@@ -465,7 +465,16 @@ export class OperatorsService {
       data: {
         status: 'CLIENT_REVIEW_PENDING',
         operator_price_adjustment_reason: notes.trim(),
-        operator_reviewed_at: new Date()
+        operator_reviewed_at: new Date(),
+        // Si el pedido ya había sido aprobado con un precio en un ciclo de
+        // revisión anterior (rechazo tras una reedición posterior a una
+        // aprobación previa), se limpia para que no quede un final_price
+        // "fantasma": tanto el frontend (getReviewOutcome, que distingue
+        // aprobado/rechazado por si final_price es null) como el guard de
+        // edición del cliente dependen de que un rechazo deje final_price
+        // en null.
+        final_price: null,
+        advance_amount: null
       }
     });
 

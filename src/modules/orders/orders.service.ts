@@ -186,7 +186,15 @@ export class OrdersService {
       throw new ForbiddenError('No tienes permiso para modificar este pedido');
     }
 
-    if (order.status !== 'DRAFT' && order.status !== 'BUDGETED') {
+    // El pedido es editable en DRAFT/BUDGETED (antes de la primera revisión),
+    // y también cuando el operario lo rechazó (CLIENT_REVIEW_PENDING con
+    // operator_reviewed_at pero sin final_price): el cliente puede ajustar
+    // archivos/notas antes de reenviarlo a revisión. No es editable si el
+    // operario ya aprobó con un precio (ahí solo corresponde confirmar/pagar).
+    const rejectedByOperator =
+      order.status === 'CLIENT_REVIEW_PENDING' && !!order.operator_reviewed_at && order.final_price === null;
+
+    if (order.status !== 'DRAFT' && order.status !== 'BUDGETED' && !rejectedByOperator) {
       throw new BadRequestError(
         `Solo se puede editar un pedido antes de enviarlo a cotización. Estado actual: ${order.status}`
       );

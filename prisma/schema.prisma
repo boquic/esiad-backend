@@ -70,6 +70,9 @@ enum TriggerEvent {
   CLIENT_OBSERVATION_RECEIVED
   BUDGET_ADJUSTED
   OPERATOR_REVIEW_APPROVED
+  // El operario no aprobó el pedido tal cual estaba y lo devuelve al cliente
+  // con un motivo, a la espera de su respuesta (no cancela el pedido).
+  OPERATOR_REVIEW_REJECTED
   PAYMENT_CONFIRMED
   ORDER_IN_PRODUCTION
   ORDER_DELAYED

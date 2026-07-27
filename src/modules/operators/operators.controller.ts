@@ -172,7 +172,7 @@ export class OperatorsController {
     try {
       const userId = (req as AuthenticatedOperatorRequest).user?.id;
       const id = req.params.id as string;
-      const { action, notes } = req.body;
+      const { action, notes, final_price } = req.body;
 
       if (!userId) {
         res.status(401).json({ error: true, message: 'Acceso no autorizado, token no proporcionado' });
@@ -184,7 +184,8 @@ export class OperatorsController {
         return;
       }
 
-      const order = await operatorsService.reviewOrder(userId, id, action, notes);
+      const finalPrice = final_price !== undefined && final_price !== null ? Number(final_price) : undefined;
+      const order = await operatorsService.reviewOrder(userId, id, action, notes, finalPrice);
       res.status(200).json({ data: order });
     } catch (error) {
       if (error instanceof Error) {
@@ -193,9 +194,9 @@ export class OperatorsController {
           return;
         }
         if (
-          error.message.includes('invÃ¡lida') ||
-          error.message.includes('Solo se puede aprobar') ||
-          error.message.includes('requeridas')
+          error.message.includes('inválida') ||
+          error.message.includes('Solo se puede revisar') ||
+          error.message.includes('requerido')
         ) {
           res.status(400).json({ error: true, message: error.message });
           return;

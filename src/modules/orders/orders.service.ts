@@ -557,6 +557,41 @@ export class OrdersService {
       throw new BadRequestError('El presupuesto ha expirado');
     }
 
+    // Si el pedido está en CLIENT_REVIEW_PENDING porque el operario ya lo
+    // aprobó con un precio final (reviewOrder -> APPROVE fija final_price y
+    // operator_reviewed_at), "confirmar" aquí significa que el cliente acepta
+    // ese precio: el pedido pasa directo a pago (o a producción si es
+    // contraentrega), sin volver a pasar por el operario. En cualquier otro
+    // caso (primer envío a cotización, observación propia del cliente antes
+    // de revisión del operario, o confirmación de un rechazo) sigue el
+    // comportamiento de siempre: pasa a revisión del operario.
+    const clientAcceptsOperatorPrice =
+      order.status === 'CLIENT_REVIEW_PENDING' &&
+      !!order.operator_reviewed_at &&
+      order.final_price !== null;
+
+    if (clientAcceptsOperatorPrice) {
+      const now = new Date();
+      const nextStatus = order.payment_condition === 'CASH_ON_DELIVERY' ? 'IN_PROGRESS' : 'PENDING_PAYMENT';
+
+      const updatedOrder = await this.prisma.order.update({
+        where: { id: orderId },
+        data: {
+          status: nextStatus,
+          client_review_notes: reviewNotes?.trim() || order.client_review_notes,
+          client_reviewed_at: now,
+          production_started_at: nextStatus === 'IN_PROGRESS' ? now : order.production_started_at
+        },
+        include: orderWithOperatorInclude
+      });
+
+      if (nextStatus === 'IN_PROGRESS') {
+        await this.notificationsService.send(updatedOrder.id, 'ORDER_IN_PRODUCTION');
+      }
+
+      return updatedOrder;
+    }
+
     return await this.prisma.order.update({
       where: { id: orderId },
       data: {

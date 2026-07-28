@@ -9,7 +9,7 @@ import { notificationsService } from '../notifications/notifications.service';
 // tiene un comprobante nuevo por revisar.
 const pendingPaymentsInclude = {
   where: { status: 'PENDING' as const },
-  select: { id: true, created_at: true }
+  select: { id: true, created_at: true, capture_url: true }
 };
 
 const operatorQueueOrderInclude = Prisma.validator<Prisma.OrderDefaultArgs>()({
@@ -346,6 +346,112 @@ export class OperatorsService {
       id: updatedOrder.id,
       status: updatedOrder.status,
       updated_at: updatedOrder.updated_at
+    };
+  }
+
+  /**
+   * El operario revisó el comprobante y determina que el pago NO se
+   * realizó (ej. el cliente se equivocó de monto/cuenta, o subió una
+   * captura que no corresponde). A diferencia de confirmPayment, esto NO
+   * cambia el estado del pedido (se queda en PENDING_PAYMENT): solo marca
+   * el comprobante como rechazado para que el cliente pueda volver a
+   * subir uno nuevo, y se le notifica.
+   */
+  async rejectPayment(userId: string, orderId: string) {
+    const operator = await prisma.operator.findUnique({
+      where: { user_id: userId }
+    });
+
+    if (!operator) {
+      throw new Error('Operario no encontrado');
+    }
+
+    const order = await prisma.order.findFirst({
+      where: { id: orderId }
+    });
+
+    if (!order) {
+      throw new Error('Pedido no encontrado');
+    }
+
+    if (order.operator_id !== operator.id) {
+      throw new Error('No puedes rechazar el pago de un pedido que no te fue asignado');
+    }
+
+    if (order.status !== 'PENDING_PAYMENT') {
+      throw new Error(`Solo se puede rechazar el pago de un pedido en estado PENDING_PAYMENT. Estado actual: ${order.status}`);
+    }
+
+    const pendingPayment = await prisma.payment.findFirst({
+      where: { order_id: orderId, status: 'PENDING' }
+    });
+
+    if (!pendingPayment) {
+      throw new Error('Este pedido no tiene un comprobante de pago pendiente de verificar');
+    }
+
+    const now = new Date();
+
+    await prisma.payment.update({
+      where: { id: pendingPayment.id },
+      data: { status: 'REJECTED', reviewed_at: now }
+    });
+
+    await notificationsService.send(orderId, 'PAYMENT_REJECTED');
+
+    return {
+      id: orderId,
+      status: order.status,
+      updated_at: now
+    };
+  }
+
+  /**
+   * Resuelve el comprobante (captura) que el cliente subió más
+   * recientemente para este pedido, para que el operario pueda verlo antes
+   * de confirmar o rechazar el pago. Mismo patrón de validación de ruta que
+   * getDownloadableFile.
+   */
+  async getDownloadablePaymentVoucher(userId: string, orderId: string) {
+    const operator = await prisma.operator.findUnique({
+      where: { user_id: userId }
+    });
+
+    if (!operator) {
+      throw new Error('Operario no encontrado');
+    }
+
+    const order = await prisma.order.findFirst({
+      where: {
+        id: orderId,
+        operator_id: operator.id
+      }
+    });
+
+    if (!order) {
+      throw new Error('Pedido no encontrado o no asignado a este operario');
+    }
+
+    const payment = await prisma.payment.findFirst({
+      where: { order_id: orderId },
+      orderBy: { created_at: 'desc' }
+    });
+
+    if (!payment || !payment.capture_url) {
+      throw new Error('Comprobante no encontrado');
+    }
+
+    const relativePath = payment.capture_url.replace(/^\/+/, '').replace(/\//g, path.sep);
+    const absolutePath = path.resolve(process.cwd(), relativePath);
+    const uploadsRoot = path.resolve(process.cwd(), ENV.UPLOAD_PATH);
+
+    if (!absolutePath.startsWith(uploadsRoot)) {
+      throw new Error('Ruta de archivo inválida');
+    }
+
+    return {
+      absolutePath,
+      originalFileName: path.basename(payment.capture_url)
     };
   }
 

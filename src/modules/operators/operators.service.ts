@@ -216,7 +216,7 @@ export class OperatorsService {
     return buildSafeOperatorOrder(order);
   }
 
-  async updateOrderStatus(userId: string, orderId: string, status: string) {
+  async updateOrderStatus(userId: string, orderId: string, status: string, productionTimeEstimate?: string) {
     const operator = await prisma.operator.findUnique({
       where: { user_id: userId }
     });
@@ -258,11 +258,19 @@ export class OperatorsService {
     let updatedOrder;
 
     if (status === 'IN_PROGRESS') {
+      // El tiempo estimado se registra junto con el inicio de producción (no
+      // como un paso aparte que el operario podía saltarse), para que el
+      // cliente siempre reciba una referencia de cuándo estará listo.
+      if (!productionTimeEstimate || !productionTimeEstimate.trim()) {
+        throw new Error('El tiempo estimado de producción es requerido para iniciar producción');
+      }
+
       updatedOrder = await prisma.order.update({
         where: { id: orderId },
         data: {
           status: 'IN_PROGRESS',
-          production_started_at: new Date()
+          production_started_at: new Date(),
+          production_time_estimate: productionTimeEstimate.trim()
         }
       });
 

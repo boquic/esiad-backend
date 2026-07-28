@@ -44,7 +44,9 @@ function buildOrderNotificationMessage(order: OrderWithClient, triggerEvent: Tri
     case 'PAYMENT_REJECTED':
       return `Tu comprobante de pago para el pedido #${shortOrderId} no pudo ser validado. Ingresa a la plataforma para volver a realizar el pago.`;
     case 'ORDER_IN_PRODUCTION':
-      return `Tu pedido #${shortOrderId} ya esta en produccion. Te avisaremos cuando este listo para recoger.`;
+      return order.production_time_estimate
+        ? `Tu pedido #${shortOrderId} ya esta en produccion. Tiempo estimado: ${order.production_time_estimate}. Te avisaremos cuando este listo para recoger.`
+        : `Tu pedido #${shortOrderId} ya esta en produccion. Te avisaremos cuando este listo para recoger.`;
     case 'ORDER_DELAYED':
       return `Tu pedido #${shortOrderId} tiene un retraso. Te avisaremos apenas tengamos una nueva actualizacion.`;
     case 'ORDER_READY':

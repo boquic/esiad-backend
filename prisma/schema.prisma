@@ -74,6 +74,10 @@ enum TriggerEvent {
   // con un motivo, a la espera de su respuesta (no cancela el pedido).
   OPERATOR_REVIEW_REJECTED
   PAYMENT_CONFIRMED
+  // El operario verificó el comprobante y no corresponde al pago real (o no
+  // llegó): el pedido se queda en PENDING_PAYMENT para que el cliente vuelva
+  // a intentar el pago.
+  PAYMENT_REJECTED
   ORDER_IN_PRODUCTION
   ORDER_DELAYED
   ORDER_READY

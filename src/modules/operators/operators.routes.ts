@@ -48,6 +48,23 @@ router.post(
   operatorsController.confirmPayment
 );
 
+// El operario revisó el comprobante y determina que el pago no se realizó:
+// el pedido se queda en PENDING_PAYMENT para que el cliente reintente.
+router.post(
+  '/orders/:id/reject-payment',
+  authMiddleware,
+  requireRole(['OPERATOR']),
+  operatorsController.rejectPayment
+);
+
+// Ver la captura del comprobante que subió el cliente antes de confirmar/rechazar el pago.
+router.get(
+  '/orders/:id/payment-voucher',
+  authMiddleware,
+  requireRole(['OPERATOR']),
+  operatorsController.downloadPaymentVoucher
+);
+
 router.post(
   '/orders/:id/review',
   authMiddleware,

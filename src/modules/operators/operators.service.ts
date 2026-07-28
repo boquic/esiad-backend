@@ -852,26 +852,12 @@ export class OperatorsService {
       throw new Error(`Solo se puede confirmar la recogida de un pedido en estado READY. Estado actual: ${order.status}`);
     }
 
-    // RN: saldo 0 antes de entregar. Los pedidos con contraentrega se saldan en efectivo en el mismo momento
-    // de la recogida, por lo que la validación de saldo digital solo aplica a pedidos con adelanto (ADVANCE_50).
-    if (order.payment_condition === 'ADVANCE_50') {
-      const approvedPayments = await prisma.payment.findMany({
-        where: { order_id: orderId, status: 'APPROVED' },
-        select: { amount: true }
-      });
-
-      const totalPaid = approvedPayments.reduce(
-        (total, payment) => total.plus(payment.amount),
-        new Prisma.Decimal(0)
-      );
-
-      const totalOwed = order.final_price ?? order.estimated_price;
-      const balance = totalOwed.minus(totalPaid);
-
-      if (balance.greaterThan(0)) {
-        throw new Error(`No se puede confirmar la recogida: el pedido tiene un saldo pendiente de ${balance.toFixed(2)}`);
-      }
-    }
+    // El pago del saldo restante (50%) es opcional: el cliente puede pagarlo
+    // en línea (con comprobante que el operario confirma) o simplemente
+    // presencialmente en efectivo al recoger, igual que los pedidos con
+    // contraentrega. Por eso "Confirmar recojo/entrega" no exige saldo 0: es
+    // el propio operario quien verifica el pago (digital o en efectivo) al
+    // momento de la entrega, sin que el sistema lo bloquee.
 
     const updated = await prisma.$transaction(async (tx) => {
       const updatedOrder = await tx.order.update({

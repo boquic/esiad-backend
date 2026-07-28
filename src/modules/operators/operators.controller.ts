@@ -64,19 +64,19 @@ export class OperatorsController {
     try {
       const userId = (req as AuthenticatedOperatorRequest).user?.id;
       const id = req.params.id as string;
-      const { status } = req.body;
+      const { status, production_time_estimate } = req.body;
 
       if (!userId) {
         res.status(401).json({ error: true, message: 'Acceso no autorizado, token no proporcionado' });
         return;
       }
-      
+
       if (!status) {
         res.status(400).json({ error: true, message: 'El campo status es requerido' });
         return;
       }
 
-      const order = await operatorsService.updateOrderStatus(userId, id, status);
+      const order = await operatorsService.updateOrderStatus(userId, id, status, production_time_estimate);
       res.status(200).json({ data: order });
     } catch (error) {
       if (error instanceof Error) {
@@ -87,7 +87,8 @@ export class OperatorsController {
         if (
           error.message.includes('Estado inválido') ||
           error.message.includes('Solo se puede marcar como READY') ||
-          error.message.includes('Solo se puede iniciar producción')
+          error.message.includes('Solo se puede iniciar producción') ||
+          error.message.includes('El tiempo estimado de producción es requerido')
         ) {
           res.status(400).json({ error: true, message: error.message });
           return;

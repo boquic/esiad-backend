@@ -19,7 +19,15 @@ export class PaymentsService {
       throw new Error('El pedido debe completar la revisiÃ³n antes de subir la captura del pago');
     }
 
-    if (order.status !== 'PENDING_PAYMENT') {
+    // PENDING_PAYMENT: pago del adelanto (50%) antes de iniciar producción.
+    // READY: el pedido ya está listo para recoger y queda el saldo restante
+    // (50%) pendiente; el cliente puede pagarlo por adelantado aquí mismo, o
+    // simplemente pagar presencialmente al recoger (por eso este pago es
+    // opcional y no bloquea la entrega).
+    const isAdvanceStage = order.status === 'PENDING_PAYMENT';
+    const isBalanceStage = order.status === 'READY';
+
+    if (!isAdvanceStage && !isBalanceStage) {
       throw new Error(`No se puede registrar un pago para un pedido en estado ${order.status}`);
     }
 
@@ -49,17 +57,31 @@ export class PaymentsService {
       new Prisma.Decimal(0)
     );
 
-    const requiredAmount = order.advance_amount ?? order.final_price ?? order.estimated_price;
+    let amountToCharge: Prisma.Decimal;
+    let paymentType: 'ADVANCE' | 'FINAL';
 
-    if (approvedAmount.greaterThanOrEqualTo(requiredAmount)) {
-      throw new Error('El pedido ya cuenta con un pago aprobado suficiente');
+    if (isAdvanceStage) {
+      const requiredAdvance = order.advance_amount ?? order.final_price ?? order.estimated_price;
+      if (approvedAmount.greaterThanOrEqualTo(requiredAdvance)) {
+        throw new Error('El pedido ya cuenta con un pago aprobado suficiente');
+      }
+      amountToCharge = requiredAdvance;
+      paymentType = 'ADVANCE';
+    } else {
+      const totalOwed = order.final_price ?? order.estimated_price;
+      const remainingBalance = totalOwed.minus(approvedAmount);
+      if (remainingBalance.lessThanOrEqualTo(0)) {
+        throw new Error('El pedido ya cuenta con un pago aprobado suficiente');
+      }
+      amountToCharge = remainingBalance;
+      paymentType = 'FINAL';
     }
 
     const payment = await prisma.payment.create({
       data: {
         order_id: orderId,
-        amount: order.advance_amount ?? order.final_price ?? order.estimated_price,
-        payment_type: 'ADVANCE',
+        amount: amountToCharge,
+        payment_type: paymentType,
         capture_url: `/uploads/${file.filename}`,
         status: 'PENDING'
       }

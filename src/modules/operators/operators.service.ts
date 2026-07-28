@@ -4,12 +4,14 @@ import { ENV } from '../../config/env';
 import { prisma } from '../../config/database';
 import { notificationsService } from '../notifications/notifications.service';
 
-// Pagos pendientes de revisión (el cliente subió su comprobante y aún no lo
-// aprueba/rechaza el operario/admin): se usan para avisarle al operario que
-// tiene un comprobante nuevo por revisar.
-const pendingPaymentsInclude = {
-  where: { status: 'PENDING' as const },
-  select: { id: true, created_at: true, capture_url: true }
+// Todos los pagos del pedido (no solo los pendientes): se usan tanto para
+// avisarle al operario que hay un comprobante nuevo por revisar (PENDING),
+// como para calcular cuánto saldo le queda por pagar al pedido (APPROVED),
+// necesario para el pago opcional del saldo restante cuando el pedido ya
+// está READY.
+const allPaymentsInclude = {
+  orderBy: { created_at: 'desc' as const },
+  select: { id: true, status: true, amount: true, payment_type: true, created_at: true, capture_url: true }
 };
 
 const operatorQueueOrderInclude = Prisma.validator<Prisma.OrderDefaultArgs>()({
@@ -31,7 +33,7 @@ const operatorQueueOrderInclude = Prisma.validator<Prisma.OrderDefaultArgs>()({
         phone: true
       }
     },
-    payments: pendingPaymentsInclude
+    payments: allPaymentsInclude
   }
 });
 
@@ -55,7 +57,7 @@ const operatorDetailOrderInclude = Prisma.validator<Prisma.OrderDefaultArgs>()({
       }
     },
     files: true,
-    payments: pendingPaymentsInclude
+    payments: allPaymentsInclude
   }
 });
 
@@ -89,6 +91,14 @@ function buildSafeOperatorOrder(order: OperatorQueueOrder | OperatorDetailOrder)
         download_url: `/api/operator/orders/${order.id}/files/${file.id}/download`
       }))
     : undefined;
+
+  const allPayments = Array.isArray(order.payments) ? order.payments : [];
+  const pendingPayment = allPayments.find((p) => p.status === 'PENDING');
+  const approvedTotal = allPayments
+    .filter((p) => p.status === 'APPROVED')
+    .reduce((sum, p) => sum + Number(p.amount), 0);
+  const totalOwed = Number(order.final_price ?? order.estimated_price ?? 0);
+  const remainingBalance = Math.max(totalOwed - approvedTotal, 0);
 
   return {
     id: order.id,
@@ -131,11 +141,15 @@ function buildSafeOperatorOrder(order: OperatorQueueOrder | OperatorDetailOrder)
       : null,
     client: order.client,
     files,
-    // Comprobante de pago del cliente aún no revisado (para avisar al operario).
-    has_pending_payment: Array.isArray(order.payments) && order.payments.length > 0,
-    pending_payment_uploaded_at: Array.isArray(order.payments) && order.payments.length > 0
-      ? order.payments[0].created_at
-      : null
+    // Comprobante de pago (del adelanto o del saldo restante) aún no
+    // revisado por el operario, sea que lo haya subido el cliente en línea
+    // o el propio operario tras verlo presencialmente.
+    has_pending_payment: !!pendingPayment,
+    pending_payment_uploaded_at: pendingPayment?.created_at ?? null,
+    // Saldo pendiente del pedido (total menos pagos aprobados). Relevante
+    // sobre todo cuando el pedido ya está READY con adelanto 50%: el saldo
+    // restante se puede pagar en línea (opcional) o presencialmente al recoger.
+    remaining_balance: remainingBalance
   };
 }
 
@@ -295,11 +309,14 @@ export class OperatorsService {
   }
 
   /**
-   * El operario verificó el comprobante subido por el cliente (fuera del
-   * sistema, ej. viendo el Yape/transferencia en su celular) y confirma que
-   * el pago es real: PENDING_PAYMENT -> PAID. Aprueba el pago pendiente y
-   * deja registrado el momento de confirmación, para poder ordenar la cola
-   * de pedidos pagados que esperan iniciar producción.
+   * El operario verificó el comprobante (subido por el cliente, o por el
+   * propio operario tras verlo presencialmente) y confirma que el pago es
+   * real. Dos casos:
+   *  - PENDING_PAYMENT (adelanto): PENDING_PAYMENT -> PAID, para poder
+   *    ordenar la cola de pedidos pagados que esperan iniciar producción.
+   *  - READY (saldo restante, opcional): el pedido se queda en READY (el
+   *    cierre final sigue siendo "Confirmar recojo/entrega"), solo se
+   *    aprueba el pago para que quede registrado antes de la entrega.
    */
   async confirmPayment(userId: string, orderId: string) {
     const operator = await prisma.operator.findUnique({
@@ -322,12 +339,13 @@ export class OperatorsService {
       throw new Error('No puedes confirmar el pago de un pedido que no te fue asignado');
     }
 
-    if (order.status !== 'PENDING_PAYMENT') {
-      throw new Error(`Solo se puede confirmar el pago de un pedido en estado PENDING_PAYMENT. Estado actual: ${order.status}`);
+    if (order.status !== 'PENDING_PAYMENT' && order.status !== 'READY') {
+      throw new Error(`Solo se puede confirmar el pago de un pedido en estado PENDING_PAYMENT o READY. Estado actual: ${order.status}`);
     }
 
     const pendingPayment = await prisma.payment.findFirst({
-      where: { order_id: orderId, status: 'PENDING' }
+      where: { order_id: orderId, status: 'PENDING' },
+      orderBy: { created_at: 'desc' }
     });
 
     if (!pendingPayment) {
@@ -336,24 +354,40 @@ export class OperatorsService {
 
     const now = new Date();
 
-    const updatedOrder = await prisma.$transaction(async (tx) => {
-      await tx.payment.update({
-        where: { id: pendingPayment.id },
-        data: { status: 'APPROVED', reviewed_at: now }
+    if (order.status === 'PENDING_PAYMENT') {
+      const updatedOrder = await prisma.$transaction(async (tx) => {
+        await tx.payment.update({
+          where: { id: pendingPayment.id },
+          data: { status: 'APPROVED', reviewed_at: now }
+        });
+
+        return tx.order.update({
+          where: { id: orderId },
+          data: { status: 'PAID', payment_confirmed_at: now }
+        });
       });
 
-      return tx.order.update({
-        where: { id: orderId },
-        data: { status: 'PAID', payment_confirmed_at: now }
-      });
+      await notificationsService.send(updatedOrder.id, 'PAYMENT_CONFIRMED');
+
+      return {
+        id: updatedOrder.id,
+        status: updatedOrder.status,
+        updated_at: updatedOrder.updated_at
+      };
+    }
+
+    // READY: pago del saldo restante, opcional. No cambia el estado del pedido.
+    await prisma.payment.update({
+      where: { id: pendingPayment.id },
+      data: { status: 'APPROVED', reviewed_at: now }
     });
 
-    await notificationsService.send(updatedOrder.id, 'PAYMENT_CONFIRMED');
+    await notificationsService.send(orderId, 'BALANCE_PAYMENT_CONFIRMED');
 
     return {
-      id: updatedOrder.id,
-      status: updatedOrder.status,
-      updated_at: updatedOrder.updated_at
+      id: orderId,
+      status: order.status,
+      updated_at: now
     };
   }
 
@@ -386,12 +420,13 @@ export class OperatorsService {
       throw new Error('No puedes rechazar el pago de un pedido que no te fue asignado');
     }
 
-    if (order.status !== 'PENDING_PAYMENT') {
-      throw new Error(`Solo se puede rechazar el pago de un pedido en estado PENDING_PAYMENT. Estado actual: ${order.status}`);
+    if (order.status !== 'PENDING_PAYMENT' && order.status !== 'READY') {
+      throw new Error(`Solo se puede rechazar el pago de un pedido en estado PENDING_PAYMENT o READY. Estado actual: ${order.status}`);
     }
 
     const pendingPayment = await prisma.payment.findFirst({
-      where: { order_id: orderId, status: 'PENDING' }
+      where: { order_id: orderId, status: 'PENDING' },
+      orderBy: { created_at: 'desc' }
     });
 
     if (!pendingPayment) {
@@ -461,6 +496,86 @@ export class OperatorsService {
       absolutePath,
       originalFileName: path.basename(payment.capture_url)
     };
+  }
+
+  /**
+   * El operario registra el pago del saldo restante (50%) de un pedido
+   * READY que el cliente pagó presencialmente (ej. le muestra la captura de
+   * su transferencia en el local): sube esa foto como comprobante, igual
+   * que si el cliente la hubiera subido desde la plataforma. Queda PENDING
+   * hasta que el operario la revise y confirme con confirmPayment (mismo
+   * flujo/botones que un comprobante subido en línea), antes de poder
+   * confirmar el recojo/entrega.
+   */
+  async uploadBalancePaymentCapture(userId: string, orderId: string, file?: Express.Multer.File) {
+    const operator = await prisma.operator.findUnique({
+      where: { user_id: userId }
+    });
+
+    if (!operator) {
+      throw new Error('Operario no encontrado');
+    }
+
+    const order = await prisma.order.findFirst({
+      where: { id: orderId }
+    });
+
+    if (!order) {
+      throw new Error('Pedido no encontrado');
+    }
+
+    if (order.operator_id !== operator.id) {
+      throw new Error('No puedes registrar un pago de un pedido que no te fue asignado');
+    }
+
+    if (order.status !== 'READY') {
+      throw new Error(`Solo se puede registrar el pago del saldo para un pedido en estado READY. Estado actual: ${order.status}`);
+    }
+
+    if (order.payment_condition !== 'ADVANCE_50') {
+      throw new Error('Este pedido no tiene saldo pendiente por adelanto');
+    }
+
+    if (!file) {
+      throw new Error('La captura del pago es requerida');
+    }
+
+    const existingPending = await prisma.payment.findFirst({
+      where: { order_id: orderId, status: 'PENDING' }
+    });
+
+    if (existingPending) {
+      throw new Error('Ya existe una captura pendiente de revisión para este pedido');
+    }
+
+    const approvedPayments = await prisma.payment.findMany({
+      where: { order_id: orderId, status: 'APPROVED' },
+      select: { amount: true }
+    });
+
+    const approvedAmount = approvedPayments.reduce(
+      (total, payment) => total.plus(payment.amount),
+      new Prisma.Decimal(0)
+    );
+
+    const totalOwed = order.final_price ?? order.estimated_price;
+    const remainingBalance = totalOwed.minus(approvedAmount);
+
+    if (remainingBalance.lessThanOrEqualTo(0)) {
+      throw new Error('Este pedido ya no tiene saldo pendiente por pagar');
+    }
+
+    const payment = await prisma.payment.create({
+      data: {
+        order_id: orderId,
+        amount: remainingBalance,
+        payment_type: 'FINAL',
+        capture_url: `/uploads/${file.filename}`,
+        status: 'PENDING'
+      }
+    });
+
+    return payment;
   }
 
   async updateOrderNotes(userId: string, orderId: string, notes: string) {

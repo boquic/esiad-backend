@@ -170,6 +170,47 @@ export class OperatorsController {
     }
   }
 
+  async uploadBalancePaymentCapture(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const userId = (req as AuthenticatedOperatorRequest).user?.id;
+      const id = req.params.id as string;
+      const file = req.file;
+
+      if (!userId) {
+        res.status(401).json({ error: true, message: 'Acceso no autorizado, token no proporcionado' });
+        return;
+      }
+
+      const payment = await operatorsService.uploadBalancePaymentCapture(userId, id, file);
+      res.status(201).json({ data: payment });
+    } catch (error) {
+      if (error instanceof Error) {
+        if (error.message === 'No puedes registrar un pago de un pedido que no te fue asignado') {
+          res.status(403).json({ error: true, message: error.message });
+          return;
+        }
+        if (error.message === 'Ya existe una captura pendiente de revisión para este pedido') {
+          res.status(409).json({ error: true, message: error.message });
+          return;
+        }
+        if (
+          error.message.includes('Solo se puede registrar el pago del saldo') ||
+          error.message.includes('no tiene saldo pendiente') ||
+          error.message === 'La captura del pago es requerida' ||
+          error.message.includes('Formato de archivo no permitido')
+        ) {
+          res.status(400).json({ error: true, message: error.message });
+          return;
+        }
+        if (error.message === 'Operario no encontrado' || error.message === 'Pedido no encontrado') {
+          res.status(404).json({ error: true, message: error.message });
+          return;
+        }
+      }
+      next(error);
+    }
+  }
+
   async downloadPaymentVoucher(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const userId = (req as AuthenticatedOperatorRequest).user?.id;

@@ -84,6 +84,10 @@ enum TriggerEvent {
   PICKUP_REMINDER_48H
   ORDER_DELIVERED
   ORDER_SENT_TO_QUOTATION
+  // El operario confirmó el pago del saldo restante (50%) de un pedido que
+  // ya estaba READY. A diferencia de PAYMENT_CONFIRMED, esto no cambia el
+  // estado del pedido (sigue READY, esperando el recojo).
+  BALANCE_PAYMENT_CONFIRMED
 }
 
 enum DeliveryStatus {

@@ -1,9 +1,25 @@
-import { Router } from 'express';
+import { NextFunction, Request, Response, Router } from 'express';
 import { operatorsController } from './operators.controller';
 import { authMiddleware } from '../../middlewares/auth.middleware';
 import { requireRole } from '../../middlewares/role.middleware';
+import { buildUploadErrorResponse, uploadImageMiddleware } from '../../middlewares/upload.middleware';
 
 const router = Router();
+
+const handleBalancePaymentCaptureUpload = (req: Request, res: Response, next: NextFunction): void => {
+  const upload = uploadImageMiddleware.single('capture');
+
+  upload(req, res, (error: unknown) => {
+    const uploadError = buildUploadErrorResponse(error);
+
+    if (uploadError) {
+      res.status(uploadError.status).json({ error: true, message: uploadError.message });
+      return;
+    }
+
+    next();
+  });
+};
 
 router.get(
   '/orders',
@@ -63,6 +79,16 @@ router.get(
   authMiddleware,
   requireRole(['OPERATOR']),
   operatorsController.downloadPaymentVoucher
+);
+
+// El operario registra (opcionalmente) el pago del saldo restante de un pedido
+// READY que el cliente pagó presencialmente, subiendo la foto de la captura.
+router.post(
+  '/orders/:id/balance-payment',
+  authMiddleware,
+  requireRole(['OPERATOR']),
+  handleBalancePaymentCaptureUpload,
+  operatorsController.uploadBalancePaymentCapture
 );
 
 router.post(
